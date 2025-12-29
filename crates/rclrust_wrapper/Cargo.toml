@@ -1,0 +1,8 @@
+[package]
+name = "rclrust_wrapper"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rclrust_core = { path = "../rclrust_core" }
+tracing = "0.1"
