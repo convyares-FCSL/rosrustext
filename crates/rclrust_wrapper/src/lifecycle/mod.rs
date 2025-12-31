@@ -5,7 +5,7 @@
 //! Exposes application-facing lifecycle primitives while keeping core semantics in rclrust_core.
 
 /// Re-export core lifecycle types
-pub use rclrust_core::lifecycle::ActivationGate;
+pub use rclrust_core::lifecycle::{ActivationGate, CallbackResult, LifecycleCallbacks};
 
 // Lifecycle publisher module.
 mod managed_publisher;
@@ -29,3 +29,4 @@ pub use util::run_if_active;
 // Lifecycle node module.
 mod node;
 pub use node::LifecycleNode;
+

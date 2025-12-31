@@ -1,50 +1,84 @@
 //! roslibrust lifecycle service adapters
 //!
-//! This module wires ROS lifecycle services to the wrapper lifecycle logic.
-//! It contains **no lifecycle semantics** — only transport glue.
+//! This module wires transport callbacks to wrapper lifecycle logic.
+//! It contains **no ROS message types** — only transport glue.
 
 use std::sync::{Arc, Mutex};
 
-use crate::lifecycle::LifecycleNode;
-use crate::lifecycle::dtos::{change_state, get_available_transitions, get_state};
+use crate::lifecycle::{dtos, LifecycleNode};
 
 /// ROS-facing lifecycle service adapter.
 ///
-/// Owns a shared `LifecycleNode` and exposes service handlers that can be
+/// Owns a shared `LifecycleNode` and exposes handlers that can be
 /// registered with roslibrust.
 pub struct LifecycleService {
     node: Arc<Mutex<LifecycleNode>>,
 }
 
-/// Public API (transport layer facing).
 impl LifecycleService {
-    /// Create a new lifecycle service adapter.
-    ///
-    /// The node is wrapped in Arc<Mutex<..>> because:
-    /// - service callbacks may be invoked concurrently
-    /// - lifecycle transitions must be serialized
     pub fn new(node: Arc<Mutex<LifecycleNode>>) -> Self {
         Self { node }
     }
 
-    /// Handle a ROS `ChangeState` service request.
-    ///
-    /// This will be registered as the service callback in roslibrust.
-    pub fn handle_change_state(&self, req: change_state::Request) -> change_state::Response {
+    /// DTO handler: ChangeState
+    pub fn handle_change_state(&self, req: dtos::change_state::Request) -> dtos::change_state::Response {
         let mut node = self.node.lock().expect("lifecycle node poisoned");
         node.handle_change_state(req)
     }
 
-    pub fn handle_get_state(&self, req: get_state::Request) -> get_state::Response {
+    /// DTO handler: GetState
+    pub fn handle_get_state(&self, req: dtos::get_state::Request) -> dtos::get_state::Response {
         let node = self.node.lock().expect("lifecycle node poisoned");
         node.handle_get_state(req)
     }
 
+    /// DTO handler: GetAvailableTransitions
     pub fn handle_get_available_transitions(
         &self,
-        req: get_available_transitions::Request,
-    ) -> get_available_transitions::Response {
+        req: dtos::get_available_transitions::Request,
+    ) -> dtos::get_available_transitions::Response {
         let node = self.node.lock().expect("lifecycle node poisoned");
         node.handle_get_available_transitions(req)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lifecycle::LifecycleCallbacks;
+    use rclrust_core::lifecycle::CallbackResult;
+
+    struct OkCallbacks;
+    impl LifecycleCallbacks for OkCallbacks {
+        fn on_configure(&mut self) -> CallbackResult { CallbackResult::Success }
+        fn on_activate(&mut self) -> CallbackResult { CallbackResult::Success }
+        fn on_deactivate(&mut self) -> CallbackResult { CallbackResult::Success }
+        fn on_cleanup(&mut self) -> CallbackResult { CallbackResult::Success }
+        fn on_shutdown(&mut self) -> CallbackResult { CallbackResult::Success }
+        fn on_error(&mut self) -> CallbackResult { CallbackResult::Success }
+    }
+
+    #[test]
+    fn change_state_dto_maps_and_reports_success() {
+        let node = Arc::new(Mutex::new(LifecycleNode::new("test_node", Box::new(OkCallbacks)).unwrap()));
+        let svc = LifecycleService::new(node);
+
+        let req = dtos::change_state::Request {
+            transition_id: rclrust_core::lifecycle::ros_ids::TRANSITION_CONFIGURE,
+        };
+
+        let resp = svc.handle_change_state(req);
+        assert!(resp.success);
+        assert!(!resp.message.is_empty());
+    }
+
+    #[test]
+    fn change_state_dto_rejects_unsupported_transition_id() {
+        let node = Arc::new(Mutex::new(LifecycleNode::new("test_node", Box::new(OkCallbacks)).unwrap()));
+        let svc = LifecycleService::new(node);
+
+        let resp = svc.handle_change_state(dtos::change_state::Request { transition_id: 999 });
+        assert!(!resp.success);
+        assert!(!resp.message.is_empty());
     }
 }

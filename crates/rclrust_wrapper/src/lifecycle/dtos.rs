@@ -6,12 +6,14 @@
 /// Minimal representation of lifecycle `ChangeState` request/response.
 pub(crate) mod change_state {
     /// Request: ROS Transition ID (from lifecycle_msgs/msg/Transition constants).
+    #[allow(dead_code)]
     #[derive(Debug, Copy, Clone, Eq, PartialEq)]
     pub struct Request {
         pub transition_id: u8,
     }
 
     /// Response: success + human-readable message.
+    #[allow(dead_code)]
     #[derive(Debug, Clone, Eq, PartialEq)]
     pub struct Response {
         pub success: bool,
@@ -22,10 +24,12 @@ pub(crate) mod change_state {
 /// Minimal representation of lifecycle `GetState` request/response.
 pub(crate) mod get_state {
     /// Empty request (matches ROS GetState).
+    #[allow(dead_code)]
     #[derive(Debug, Copy, Clone, Eq, PartialEq)]
     pub struct Request;
 
     /// Response: current state id + label.
+    #[allow(dead_code)]
     #[derive(Debug, Clone, Eq, PartialEq)]
     pub struct Response {
         pub state_id: u8,
@@ -36,16 +40,19 @@ pub(crate) mod get_state {
 /// Minimal representation of lifecycle `GetAvailableTransitions`.
 pub(crate) mod get_available_transitions {
     /// Empty request.
+    #[allow(dead_code)]
     #[derive(Debug, Copy, Clone, Eq, PartialEq)]
     pub struct Request;
 
     /// Response: list of available transition ids + labels.
+    #[allow(dead_code)]
     #[derive(Debug, Clone, Eq, PartialEq)]
     pub struct Transition {
         pub id: u8,
         pub label: String,
     }
 
+    #[allow(dead_code)]
     #[derive(Debug, Clone, Eq, PartialEq)]
     pub struct Response {
         pub transitions: Vec<Transition>,
