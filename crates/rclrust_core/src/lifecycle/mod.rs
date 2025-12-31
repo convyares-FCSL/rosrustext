@@ -146,6 +146,12 @@ impl ActivationGate {
     }
 }
 
+impl Default for ActivationGate {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Callbacks invoked during lifecycle transitions.
 ///
 /// Implementors own resources and decide what Success/Failure/Error means.

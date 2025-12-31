@@ -63,12 +63,6 @@ pub enum Payload {
     Code(u32),
 }
 
-impl Default for Payload {
-    fn default() -> Self {
-        Payload::None
-    }
-}
-
 /// The one error type that crosses module boundaries in rclrust_core.
 #[derive(Debug, Error, Clone, Eq, PartialEq)]
 #[error("{kind:?} ({domain:?}, {severity:?})")]
