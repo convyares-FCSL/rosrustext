@@ -4,7 +4,7 @@ This list tracks what is required to reach **observable parity**
 with ROS2 lifecycle nodes (`rcl_lifecycle` + `rclcpp_lifecycle`).
 
 Guiding rule:
-- `rclrust_core` defines lifecycle truth
+- `rosrustext_core` defines lifecycle truth
 - `rclrust_wrapper` adapts that truth to ROS transports
 
 This is **not** a reimplementation of rclcpp.

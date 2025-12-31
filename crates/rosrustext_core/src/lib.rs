@@ -1,4 +1,4 @@
-//! rclrust_core: ROS-agnostic core utilities for lifecycle + actions + config.
+//! rosrustext_core: ROS-agnostic core utilities for lifecycle + actions + config.
 //!
 //! Design goals:
 //! - Pure, testable logic (no ROS deps).

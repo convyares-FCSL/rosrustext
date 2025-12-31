@@ -34,7 +34,7 @@ It is a lifecycle model that can be *controlled by* ROS.
 
 The crate is split deliberately along semantic boundaries.
 
-### `rclrust_core`
+### `rosrustext_core`
 **ROS-agnostic lifecycle truth**
 
 Contains:
@@ -121,7 +121,7 @@ The intent is **boring correctness**, not convenience magic.
 - Lifecycle services exposed over rosbridge
 - Publisher and timer gating enforced in Rust
 
-Additional transports can be added without touching `rclrust_core`.
+Additional transports can be added without touching `rosrustext_core`.
 
 ---
 

@@ -1,4 +1,4 @@
-//! rclrust_core::lifecycle
+//! rosrustext_core::lifecycle
 //!
 //! Pure (ROS-agnostic) lifecycle semantics aligned to the ROS 2 node lifecycle model.
 //! This module intentionally contains **no** ROS transport code.
@@ -39,7 +39,7 @@ pub enum State {
 /// Internal, compact IDs used for error payloads.
 ///
 /// These are **not** ROS message IDs. They are stable, lightweight identifiers for
-/// debugging/telemetry inside `rclrust_core`.
+/// debugging/telemetry inside `rosrustext_core`.
 impl State {
     pub const fn id(self) -> u8 {
         match self {

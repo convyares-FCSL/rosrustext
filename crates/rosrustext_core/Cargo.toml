@@ -1,8 +1,12 @@
 [package]
-name = "rclrust_core"
-version = "0.1.0"
-edition = "2021"
+name = "rosrustext_core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "ROS-agnostic lifecycle and action state machines"
 
 [dependencies]
-thiserror = "2.0"
-tracing = "0.1"
+thiserror.workspace = true
+tracing.workspace = true

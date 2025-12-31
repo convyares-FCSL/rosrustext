@@ -1,16 +1,22 @@
 [package]
-name = "rclrust_wrapper"
-version = "0.1.0"
-edition = "2021"
+name = "rosrustext_roslibrust"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "roslibrust adapter for rosrustext lifecycle semantics"
 
 [dependencies]
-rclrust_core = { path = "../rclrust_core" }
+rosrustext_core = { path = "../rosrustext_core" }
 roslibrust = { version = "0.18.0", optional = true, features = ["rosbridge"] }
-tokio = { version = "1.48", features = ["time"] }
-tracing = "0.1"
+
+tokio = { workspace = true, features = ["time", "sync"] }
+
+tracing.workspace = true
 
 [dev-dependencies]
-tokio = { version = "1.48", features = ["macros", "rt", "time"] }
+tokio = { workspace = true, features = ["macros", "rt", "time", "sync"] }
 
 [features]
 default = []

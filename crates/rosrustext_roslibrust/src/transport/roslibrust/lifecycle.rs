@@ -78,7 +78,7 @@ impl LifecycleService {
 mod tests {
     use super::*;
     use crate::lifecycle::LifecycleCallbacks;
-    use rclrust_core::lifecycle::CallbackResult;
+    use rosrustext_core::lifecycle::CallbackResult;
 
     struct OkCallbacks;
     impl LifecycleCallbacks for OkCallbacks {
@@ -110,7 +110,7 @@ mod tests {
         let svc = LifecycleService::new(node);
 
         let req = dtos::change_state::Request {
-            transition_id: rclrust_core::lifecycle::ros_ids::TRANSITION_CONFIGURE,
+            transition_id: rosrustext_core::lifecycle::ros_ids::TRANSITION_CONFIGURE,
         };
 
         let resp = svc.handle_change_state(req);

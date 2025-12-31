@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use rclrust_core::lifecycle::ActivationGate;
+use rosrustext_core::lifecycle::ActivationGate;
 
 /// A lifecycle-gated periodic runner.
 ///

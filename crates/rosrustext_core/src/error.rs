@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use thiserror::Error;
 
-/// Convenient result alias for rclrust_core.
+/// Convenient result alias for rosrustext_core.
 pub type Result<T> = std::result::Result<T, CoreError>;
 
 /// Log/handling importance. Intended to map cleanly onto logging levels later.
@@ -63,7 +63,7 @@ pub enum Payload {
     Code(u32),
 }
 
-/// The one error type that crosses module boundaries in rclrust_core.
+/// The one error type that crosses module boundaries in rosrustext_core.
 #[derive(Debug, Error, Clone, Eq, PartialEq)]
 #[error("{kind:?} ({domain:?}, {severity:?})")]
 pub struct CoreError {

@@ -8,7 +8,7 @@ Entries reflect real behaviour, not intent.
 ## Session 1 – Library bootstrap
 - Established vendor-style Cargo workspace.
 - Split library into:
-  - `rclrust_core` (pure lifecycle logic)
+  - `rosrustext_core` (pure lifecycle logic)
   - `rclrust_wrapper` (ROS-facing adaptation)
 - Explicitly rejected `rclrs`; selected `roslibrust + rosbridge`.
 - Defined initial error and result models.

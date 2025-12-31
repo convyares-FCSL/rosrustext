@@ -1,4 +1,4 @@
-use rclrust_core::lifecycle::ActivationGate;
+use rosrustext_core::lifecycle::ActivationGate;
 
 /// Execute a closure only when the lifecycle gate is active.
 ///

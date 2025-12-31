@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use rclrust_core::lifecycle::ActivationGate;
+use rosrustext_core::lifecycle::ActivationGate;
 
 /// Minimal async publish capability.
 ///
