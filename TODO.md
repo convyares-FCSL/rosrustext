@@ -94,3 +94,7 @@ The rule:
 - [ ] Lifecycle parity notes vs rclcpp_lifecycle
 - [ ] Error handling philosophy (core vs wrapper)
 - [ ] Design rationale: explicit lifecycle over framework magic
+
+
+## Rename to fcslrosrust
+Renaming rclrust_wrapper: agree the name is clunky, but don’t rename yet — it’ll break git deps and URLs mid-flight. We can add a top-level re-export crate later if you want a nicer external name.
