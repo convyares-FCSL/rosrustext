@@ -26,6 +26,12 @@ impl LifecycleService {
         node.handle_change_state(req)
     }
 
+    /// Adapter for ROS-facing handlers that only need a transition id.
+    pub fn handle_change_state_transition_id(&self, transition_id: u8) -> (bool, String) {
+        let resp = self.handle_change_state(dtos::change_state::Request { transition_id });
+        (resp.success, resp.message)
+    }
+
     /// DTO handler: GetState
     pub fn handle_get_state(&self, req: dtos::get_state::Request) -> dtos::get_state::Response {
         let node = self.node.lock().expect("lifecycle node poisoned");

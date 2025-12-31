@@ -8,7 +8,6 @@
 pub mod error;
 
 pub mod logging;
-pub mod prelude;
 pub mod lifecycle;
 pub mod transport;
 
