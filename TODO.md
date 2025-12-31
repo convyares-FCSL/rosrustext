@@ -3,9 +3,13 @@
 This list tracks what is required to reach **observable parity**
 with ROS2 lifecycle nodes (`rcl_lifecycle` + `rclcpp_lifecycle`).
 
-The rule:
-- `rclrust_core` defines truth
-- `rclrust_wrapper` adapts that truth to ROS
+Guiding rule:
+- `rclrust_core` defines lifecycle truth
+- `rclrust_wrapper` adapts that truth to ROS transports
+
+This is **not** a reimplementation of rclcpp.
+It is an explicit, testable lifecycle model that can be *controlled by*
+standard ROS2 lifecycle managers.
 
 ---
 
@@ -23,10 +27,11 @@ The rule:
 - [x] Explicit list of available transitions per state
 - [x] Busy-state rejection (no transitions while transitioning)
 - [x] Shutdown modeled from all primary states
-- [x] ROS transition ID mapping (Configure / Activate / Shutdown variants)
+- [x] ROS transition ID mapping (Configure / Activate / Deactivate / Cleanup / Shutdown)
 
 ### Alignment verification
-- [ ] Final cross-check against ROS2 lifecycle diagram
+- [ ] Final cross-check against official ROS2 lifecycle diagram
+- [ ] Confirm edge cases (shutdown during transition, error escalation)
 - [ ] Decide whether CREATE / DESTROY remain wrapper-only (likely yes)
 
 ---
@@ -34,32 +39,48 @@ The rule:
 ## Lifecycle – Wrapper (ROS-facing)
 
 ### Lifecycle node API
-- [x] LifecycleNode abstraction
+- [x] `LifecycleNode` abstraction
 - [x] Internal state tracking
 - [x] ActivationGate ownership
-- [x] ChangeState handler
-- [x] GetState handler
-- [x] GetAvailableTransitions handler
-- [ ] GetAvailableStates handler
-- [ ] GetTransitionGraph handler
-- [ ] Lifecycle state change publisher
+- [x] `ChangeState` handler
+- [x] `GetState` handler
+- [x] `GetAvailableTransitions` handler
+- [ ] `GetAvailableStates` handler
+- [ ] `GetTransitionGraph` handler
+- [ ] Lifecycle state change publisher (`/transition_event` equivalent)
 
 ### Managed entities
 - [x] Activation-gated publisher
 - [x] Activation-gated timer (tokio-based)
 - [x] Publish suppression when inactive
-- [ ] Decide warning vs silent drop policy (match ROS2)
+- [ ] Decide warning vs silent drop policy (match ROS2 behaviour)
 
 ### Transport
 - [x] roslibrust integration behind feature flag
 - [x] Transport adapters isolated under `transport::*`
-- [ ] Wire lifecycle service servers (rosbridge)
-- [ ] Ensure lifecycle manager compatibility (Python + C++)
+- [x] ChangeState service via rosbridge
+- [ ] Wire remaining lifecycle services via rosbridge
+- [ ] Verify compatibility with Python lifecycle manager
+- [ ] Verify compatibility with C++ lifecycle manager
 
 ### Error & shutdown policy
 - [x] ErrorProcessing recovery delegated to wrapper
-- [ ] Define fatal error shutdown policy
-- [ ] Confirm shutdown semantics per ROS2 expectations
+- [x] Best-effort shutdown path implemented
+- [ ] Define fatal error shutdown policy (when to force Finalized)
+- [ ] Document shutdown semantics vs ROS2 expectations
+
+---
+
+## Lifecycle – Parity Matrix (Documentation)
+
+> This section blocks Milestone 6 completion.
+
+- [ ] Create lifecycle parity table:
+  - Service/topic name
+  - Implemented / Stubbed / Omitted
+  - Notes vs `rclcpp_lifecycle`
+- [ ] Explicitly document intentional deviations
+- [ ] Confirm “boring compatibility” with lifecycle managers
 
 ---
 
@@ -68,7 +89,7 @@ The rule:
 - [ ] Explicit action protocol state machine
 - [ ] Goal / feedback / result semantics
 - [ ] Cancellation and timeout handling
-- [ ] Unit tests
+- [ ] Deterministic unit tests
 
 ---
 
@@ -89,12 +110,22 @@ The rule:
 
 ---
 
-## Documentation
+## Naming / Packaging
 
-- [ ] Lifecycle parity notes vs rclcpp_lifecycle
-- [ ] Error handling philosophy (core vs wrapper)
-- [ ] Design rationale: explicit lifecycle over framework magic
+- [ ] Keep `rclrust_wrapper` name stable for now
+- [ ] Consider adding a top-level façade crate later
+  - e.g. `fcsl_ros_rust` or similar
+  - Pure re-export + documentation layer only
 
+---
 
-## Rename to fcslrosrust
-Renaming rclrust_wrapper: agree the name is clunky, but don’t rename yet — it’ll break git deps and URLs mid-flight. We can add a top-level re-export crate later if you want a nicer external name.
+## Definition of Done (Lifecycle)
+
+Lifecycle is considered **complete** when:
+
+- A Rust node can be controlled by:
+  - `ros2 lifecycle set`
+  - Python lifecycle manager
+  - C++ lifecycle manager
+- All lifecycle services respond correctly
+- Publ

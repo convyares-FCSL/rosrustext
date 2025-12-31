@@ -1,64 +1,147 @@
 # rclrust
 
 `rclrust` is a small Rust library that provides **ROS 2–compatible lifecycle
-and action semantics** without depending on `rclrs`.
+semantics** without depending on `rclrs`.
 
-The goal is **behavioral parity with ROS 2 lifecycle nodes**
-(`rcl_lifecycle` + `rclcpp_lifecycle`), while remaining explicit,
-inspectable, and suitable for safety-critical systems.
+The goal is **observable behavioral parity with ROS 2 lifecycle nodes**
+(`rcl_lifecycle` / `rclcpp_lifecycle`), while remaining:
+
+- explicit
+- testable without ROS
+- transport-agnostic at the core
+- suitable for safety-critical systems
+
+This is **not** a ROS client library.  
+It is a lifecycle model that can be *controlled by* ROS.
 
 ---
 
 ## Design goals
 
-- Match ROS 2 lifecycle behavior closely enough to be controlled by:
+- Match ROS 2 lifecycle behavior closely enough to be driven by:
   - Python lifecycle managers
   - C++ lifecycle managers
   - Future Rust tooling
-- Separate **pure lifecycle logic** from **ROS transport and policy**.
-- Prefer explicit state machines and enums over framework magic.
-- Avoid macros, implicit globals, or hidden executors.
-- Be easy to vendor into another repository and build as-is.
+- Keep lifecycle logic **pure and deterministic**
+- Separate **semantics** from **transport and policy**
+- Prefer explicit state machines and enums over hidden callbacks
+- Avoid macros, implicit globals, or background executors
+- Be easy to vendor into another repository and build as-is
 
 ---
 
-## Structure
+## Architecture
+
+The crate is split deliberately along semantic boundaries.
 
 ### `rclrust_core`
-**ROS-agnostic logic only**
+**ROS-agnostic lifecycle truth**
 
-- Lifecycle state machine
+Contains:
+
+- Lifecycle state machine (primary + transition states)
 - Explicit transition semantics
-- Error classification and payloads
+- Callback result model (Success / Failure / Error)
+- Error processing and recovery rules
 - Activation gating primitive
-- Action protocol (future)
 
-No ROS messages, no async runtime assumptions, no transport.
+Properties:
 
-### `rclrust_wrapper`
-**ROS-facing adapter layer**
+- No ROS messages
+- No async runtime assumptions
+- No transport or threading
+- Fully unit-testable in pure Rust
 
-- LifecycleNode abstraction
-- Managed publishers and timers
-- Mapping between core semantics and ROS2 services
-- Built on top of `roslibrust` (rosbridge)
-
-Transport concerns live here.
-Policy decisions live here.
+This crate defines *what lifecycle means*.
 
 ---
 
-## Non-goals
+### `rclrust_wrapper`
+**ROS-facing adaptation layer**
 
-- Replacing `rclcpp` or `rclpy`
-- Recreating rcl internals in Rust
-- Async “frameworks” or opinionated executors
-- Macro-heavy DSLs
+Contains:
+
+- `LifecycleNode` abstraction
+- Mapping of ROS lifecycle services to core transitions
+- Activation-gated publishers
+- Activation-gated timers
+- Transport adapters (currently `roslibrust` / rosbridge)
+
+Properties:
+
+- All ROS concepts are isolated here
+- Transport is behind feature flags
+- Policy decisions (logging, shutdown behaviour) live here
+
+This crate defines *how lifecycle is exposed to ROS*.
+
+---
+
+## Lifecycle compatibility
+
+The lifecycle model mirrors ROS 2 concepts:
+
+- Primary states:
+  - Unconfigured
+  - Inactive
+  - Active
+  - Finalized
+- Transitional states:
+  - Configuring
+  - Activating
+  - Deactivating
+  - CleaningUp
+  - ShuttingDown
+  - ErrorProcessing
+- Transition IDs aligned with ROS lifecycle services
+- Busy-state rejection
+- Deterministic shutdown from all primary states
+
+Compatibility is verified by:
+- Unit tests against all transition paths
+- Live control via `ros2 lifecycle set`
+- Interaction with Python and C++ lifecycle managers (in progress)
+
+---
+
+## What this is **not**
+
+- ❌ A replacement for `rclcpp` or `rclpy`
+- ❌ A Rust reimplementation of `rcl`
+- ❌ An async framework or executor
+- ❌ A macro-driven DSL
+
+The intent is **boring correctness**, not convenience magic.
+
+---
+
+## Current transport support
+
+- `roslibrust` via rosbridge (WebSocket)
+- Lifecycle services exposed over rosbridge
+- Publisher and timer gating enforced in Rust
+
+Additional transports can be added without touching `rclrust_core`.
+
+---
+
+## Status
+
+- Core lifecycle: **implemented and fully tested**
+- Wrapper lifecycle services: **partially complete**
+- Graceful shutdown semantics: **implemented**
+- Actions: **planned**
+- Parameters: **planned**
+
+See `TODO.md` for a parity-oriented task breakdown.
 
 ---
 
 ## Context
 
-This library is developed alongside a real industrial system
-(OPC UA bridge, safety-critical hydrogen refuelling),
-and is designed to stay boring, explicit, and debuggable.
+This library is developed alongside a real industrial control system
+(OPC UA bridge, hydrogen refuelling),
+where correctness, observability, and controlled failure modes matter
+more than API sugar.
+
+If something feels explicit or verbose, it is probably intentional.

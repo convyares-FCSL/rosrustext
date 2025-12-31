@@ -46,6 +46,21 @@ impl LifecycleService {
         let node = self.node.lock().expect("lifecycle node poisoned");
         node.handle_get_available_transitions(req)
     }
+
+    /// Best-effort graceful shutdown:
+    /// - picks the correct shutdown transition id for the node's current state
+    /// - drives the lifecycle so gate/callbacks run
+    pub fn shutdown_best_effort(&self) -> (bool, String) {
+        let mut node = self.node.lock().expect("lifecycle node poisoned");
+        let Some(transition_id) = node.shutdown_transition_ros_id() else {
+            return (true, "no shutdown transition for current state".to_string());
+        };
+        let resp = node.handle_change_state(crate::lifecycle::dtos::change_state::Request {
+            transition_id,
+        });
+        (resp.success, resp.message)
+    }
+    
 }
 
 #[cfg(test)]
