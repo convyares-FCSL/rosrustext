@@ -8,8 +8,10 @@
 pub mod error;
 
 pub mod logging;
+pub mod prelude;
 pub mod lifecycle;
 pub mod transport;
+
 
 // Re-export core types that wrapper users will commonly need
 pub use rclrust_core::lifecycle::{CallbackResult, State, Transition};
