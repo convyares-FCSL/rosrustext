@@ -7,11 +7,10 @@
 // Public modules
 pub mod error;
 
-pub mod logging;
 pub mod lifecycle;
+pub mod logging;
 pub mod transport;
 
-
 // Re-export core types that wrapper users will commonly need
-pub use rclrust_core::lifecycle::{CallbackResult, State, Transition};
 pub use rclrust_core::error::{CoreError, Result};
+pub use rclrust_core::lifecycle::{CallbackResult, State, Transition};

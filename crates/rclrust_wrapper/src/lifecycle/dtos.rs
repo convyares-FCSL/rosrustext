@@ -58,3 +58,20 @@ pub(crate) mod get_available_transitions {
         pub transitions: Vec<Transition>,
     }
 }
+
+/// Mirrors ROS2 lifecycle GetAvailableStates, but remains transport-agnostic.
+pub mod get_available_states {
+    #[derive(Debug, Clone)]
+    pub struct Request;
+
+    #[derive(Debug, Clone)]
+    pub struct State {
+        pub id: u8,
+        pub label: String,
+    }
+
+    #[derive(Debug, Clone)]
+    pub struct Response {
+        pub states: Vec<State>,
+    }
+}

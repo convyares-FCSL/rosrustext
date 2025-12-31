@@ -305,7 +305,9 @@ pub fn available_transitions(state: State) -> &'static [Transition] {
         Active => &[Deactivate, Shutdown],
         Finalized => &[],
         // Transition states: no external transitions while busy
-        Configuring | CleaningUp | Activating | Deactivating | ShuttingDown | ErrorProcessing => &[],
+        Configuring | CleaningUp | Activating | Deactivating | ShuttingDown | ErrorProcessing => {
+            &[]
+        }
     }
 }
 

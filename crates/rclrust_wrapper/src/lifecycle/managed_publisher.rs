@@ -10,8 +10,10 @@ use rclrust_core::lifecycle::ActivationGate;
 pub trait PublishLike<T>: Send + Sync + 'static {
     type Error: std::error::Error + Send + Sync + 'static;
 
-    fn publish<'a>(&'a self, msg: &'a T)
-        -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), Self::Error>> + Send + 'a>>;
+    fn publish<'a>(
+        &'a self,
+        msg: &'a T,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), Self::Error>> + Send + 'a>>;
 }
 
 /// Lifecycle-gated publisher wrapper (ROS2 lifecycle parity behavior).

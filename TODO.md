@@ -45,7 +45,7 @@ standard ROS2 lifecycle managers.
 - [x] `ChangeState` handler
 - [x] `GetState` handler
 - [x] `GetAvailableTransitions` handler
-- [ ] `GetAvailableStates` handler
+- [X] `GetAvailableStates` handler
 - [ ] `GetTransitionGraph` handler
 - [ ] Lifecycle state change publisher (`/transition_event` equivalent)
 
@@ -129,3 +129,9 @@ Lifecycle is considered **complete** when:
   - C++ lifecycle manager
 - All lifecycle services respond correctly
 - Publ
+
+---
+
+## Move to dual support (Lifecycle)
+
+Link to example roproject shows 4 (2 rust + CPP + python)

@@ -16,12 +16,16 @@ pub struct LifecycleService {
 }
 
 impl LifecycleService {
+    /// Create a new lifecycle service adapter.
     pub fn new(node: Arc<Mutex<LifecycleNode>>) -> Self {
         Self { node }
     }
 
     /// DTO handler: ChangeState
-    pub fn handle_change_state(&self, req: dtos::change_state::Request) -> dtos::change_state::Response {
+    pub fn handle_change_state(
+        &self,
+        req: dtos::change_state::Request,
+    ) -> dtos::change_state::Response {
         let mut node = self.node.lock().expect("lifecycle node poisoned");
         node.handle_change_state(req)
     }
@@ -47,6 +51,15 @@ impl LifecycleService {
         node.handle_get_available_transitions(req)
     }
 
+    /// DTO handler: GetAvailableStates
+    pub fn handle_get_available_states(
+        &self,
+        req: dtos::get_available_states::Request,
+    ) -> dtos::get_available_states::Response {
+        let node = self.node.lock().expect("lifecycle node poisoned");
+        node.handle_get_available_states(req)
+    }
+
     /// Best-effort graceful shutdown:
     /// - picks the correct shutdown transition id for the node's current state
     /// - drives the lifecycle so gate/callbacks run
@@ -55,12 +68,10 @@ impl LifecycleService {
         let Some(transition_id) = node.shutdown_transition_ros_id() else {
             return (true, "no shutdown transition for current state".to_string());
         };
-        let resp = node.handle_change_state(crate::lifecycle::dtos::change_state::Request {
-            transition_id,
-        });
+        let resp = node
+            .handle_change_state(crate::lifecycle::dtos::change_state::Request { transition_id });
         (resp.success, resp.message)
     }
-    
 }
 
 #[cfg(test)]
@@ -71,17 +82,31 @@ mod tests {
 
     struct OkCallbacks;
     impl LifecycleCallbacks for OkCallbacks {
-        fn on_configure(&mut self) -> CallbackResult { CallbackResult::Success }
-        fn on_activate(&mut self) -> CallbackResult { CallbackResult::Success }
-        fn on_deactivate(&mut self) -> CallbackResult { CallbackResult::Success }
-        fn on_cleanup(&mut self) -> CallbackResult { CallbackResult::Success }
-        fn on_shutdown(&mut self) -> CallbackResult { CallbackResult::Success }
-        fn on_error(&mut self) -> CallbackResult { CallbackResult::Success }
+        fn on_configure(&mut self) -> CallbackResult {
+            CallbackResult::Success
+        }
+        fn on_activate(&mut self) -> CallbackResult {
+            CallbackResult::Success
+        }
+        fn on_deactivate(&mut self) -> CallbackResult {
+            CallbackResult::Success
+        }
+        fn on_cleanup(&mut self) -> CallbackResult {
+            CallbackResult::Success
+        }
+        fn on_shutdown(&mut self) -> CallbackResult {
+            CallbackResult::Success
+        }
+        fn on_error(&mut self) -> CallbackResult {
+            CallbackResult::Success
+        }
     }
 
     #[test]
     fn change_state_dto_maps_and_reports_success() {
-        let node = Arc::new(Mutex::new(LifecycleNode::new("test_node", Box::new(OkCallbacks)).unwrap()));
+        let node = Arc::new(Mutex::new(
+            LifecycleNode::new("test_node", Box::new(OkCallbacks)).unwrap(),
+        ));
         let svc = LifecycleService::new(node);
 
         let req = dtos::change_state::Request {
@@ -95,7 +120,9 @@ mod tests {
 
     #[test]
     fn change_state_dto_rejects_unsupported_transition_id() {
-        let node = Arc::new(Mutex::new(LifecycleNode::new("test_node", Box::new(OkCallbacks)).unwrap()));
+        let node = Arc::new(Mutex::new(
+            LifecycleNode::new("test_node", Box::new(OkCallbacks)).unwrap(),
+        ));
         let svc = LifecycleService::new(node);
 
         let resp = svc.handle_change_state(dtos::change_state::Request {
@@ -103,5 +130,20 @@ mod tests {
         });
         assert!(!resp.success);
         assert!(!resp.message.is_empty());
+    }
+
+    #[test]
+    fn get_available_states_dto_reports_all_states() {
+        let node = Arc::new(Mutex::new(
+            LifecycleNode::new("test_node", Box::new(OkCallbacks)).unwrap(),
+        ));
+        let svc = LifecycleService::new(node);
+
+        let resp = svc.handle_get_available_states(dtos::get_available_states::Request);
+
+        assert!(resp.states.iter().any(|s| s.label == "Unconfigured"));
+        assert!(resp.states.iter().any(|s| s.label == "Active"));
+        assert!(resp.states.iter().any(|s| s.label == "ErrorProcessing"));
+        assert!(resp.states.len() >= 10);
     }
 }

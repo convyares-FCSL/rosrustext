@@ -16,7 +16,8 @@ where
     fn publish<'a>(
         &'a self,
         msg: &'a T,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), Self::Error>> + Send + 'a>> {
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), Self::Error>> + Send + 'a>>
+    {
         Box::pin(async move { self.0.publish(msg).await })
     }
 }
