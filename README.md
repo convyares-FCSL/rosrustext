@@ -1,33 +1,64 @@
 # rclrust
 
-`rclrust` is a small Rust library intended to provide **ROS 2–compatible lifecycle
-and action semantics** without depending directly on `rclrs`.
+`rclrust` is a small Rust library that provides **ROS 2–compatible lifecycle
+and action semantics** without depending on `rclrs`.
 
-Design goals:
+The goal is **behavioral parity with ROS 2 lifecycle nodes**
+(`rcl_lifecycle` + `rclcpp_lifecycle`), while remaining explicit,
+inspectable, and suitable for safety-critical systems.
 
-- Match ROS 2 lifecycle behaviour closely enough to be controlled by standard
-  lifecycle managers (Python, C++, or Rust).
-- Separate **pure logic** from **ROS transport / bindings**.
-- Prefer explicit state machines and enums over hidden framework magic.
-- Be easy to copy into another repository and build as-is.
+---
 
-Structure:
+## Design goals
 
-- `rclrust_core`
-  - ROS-agnostic logic
-  - Lifecycle state machines
-  - Action protocol core types
-  - Config and logging helpers
-- `rclrust_wrapper`
-  - ROS-facing adapter layer
-  - Built on top of `roslibrust`
-  - Exposes ROS 2 lifecycle-compatible services and topics
+- Match ROS 2 lifecycle behavior closely enough to be controlled by:
+  - Python lifecycle managers
+  - C++ lifecycle managers
+  - Future Rust tooling
+- Separate **pure lifecycle logic** from **ROS transport and policy**.
+- Prefer explicit state machines and enums over framework magic.
+- Avoid macros, implicit globals, or hidden executors.
+- Be easy to vendor into another repository and build as-is.
 
-Non-goals:
+---
+
+## Structure
+
+### `rclrust_core`
+**ROS-agnostic logic only**
+
+- Lifecycle state machine
+- Explicit transition semantics
+- Error classification and payloads
+- Activation gating primitive
+- Action protocol (future)
+
+No ROS messages, no async runtime assumptions, no transport.
+
+### `rclrust_wrapper`
+**ROS-facing adapter layer**
+
+- LifecycleNode abstraction
+- Managed publishers and timers
+- Mapping between core semantics and ROS2 services
+- Built on top of `roslibrust` (rosbridge)
+
+Transport concerns live here.
+Policy decisions live here.
+
+---
+
+## Non-goals
 
 - Replacing `rclcpp` or `rclpy`
-- Clever async abstractions
-- Macro-heavy frameworks
+- Recreating rcl internals in Rust
+- Async “frameworks” or opinionated executors
+- Macro-heavy DSLs
+
+---
+
+## Context
 
 This library is developed alongside a real industrial system
-(OPC UA bridge, safety-critical context), and aims to stay realistic.
+(OPC UA bridge, safety-critical hydrogen refuelling),
+and is designed to stay boring, explicit, and debuggable.
