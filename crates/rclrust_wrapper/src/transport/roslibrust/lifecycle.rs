@@ -5,7 +5,8 @@
 
 use std::sync::{Arc, Mutex};
 
-use crate::lifecycle::{LifecycleNode, change_state, get_state, get_available_transitions };
+use crate::lifecycle::LifecycleNode;
+use crate::lifecycle::dtos::{change_state, get_available_transitions, get_state};
 
 /// ROS-facing lifecycle service adapter.
 ///
@@ -29,17 +30,20 @@ impl LifecycleService {
     /// Handle a ROS `ChangeState` service request.
     ///
     /// This will be registered as the service callback in roslibrust.
-    pub fn handle_change_state( &self, req: change_state::Request ) -> change_state::Response {
+    pub fn handle_change_state(&self, req: change_state::Request) -> change_state::Response {
         let mut node = self.node.lock().expect("lifecycle node poisoned");
         node.handle_change_state(req)
-    } 
+    }
 
     pub fn handle_get_state(&self, req: get_state::Request) -> get_state::Response {
         let node = self.node.lock().expect("lifecycle node poisoned");
         node.handle_get_state(req)
     }
 
-    pub fn handle_get_available_transitions( &self, req: get_available_transitions::Request ) -> get_available_transitions::Response {
+    pub fn handle_get_available_transitions(
+        &self,
+        req: get_available_transitions::Request,
+    ) -> get_available_transitions::Response {
         let node = self.node.lock().expect("lifecycle node poisoned");
         node.handle_get_available_transitions(req)
     }
