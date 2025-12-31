@@ -77,7 +77,9 @@ mod tests {
         let node = Arc::new(Mutex::new(LifecycleNode::new("test_node", Box::new(OkCallbacks)).unwrap()));
         let svc = LifecycleService::new(node);
 
-        let resp = svc.handle_change_state(dtos::change_state::Request { transition_id: 999 });
+        let resp = svc.handle_change_state(dtos::change_state::Request {
+            transition_id: u8::MAX,
+        });
         assert!(!resp.success);
         assert!(!resp.message.is_empty());
     }

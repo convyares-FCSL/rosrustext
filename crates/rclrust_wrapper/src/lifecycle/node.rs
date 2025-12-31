@@ -1,11 +1,13 @@
 use std::sync::Arc;
 
 use rclrust_core::error::{CoreError, Result};
-use rclrust_core::lifecycle::{
-    available_transitions, drive, shutdown_ros_id_for_state, transition_from_ros_id, ActivationGate,
-    LifecycleCallbacks, State,
-};
+use rclrust_core::lifecycle::{ActivationGate, LifecycleCallbacks, State};
 
+#[cfg(any(test, feature = "roslibrust"))]
+use rclrust_core::lifecycle::{
+    available_transitions, drive, shutdown_ros_id_for_state, transition_from_ros_id,
+};
+#[cfg(any(test, feature = "roslibrust"))]
 use super::dtos::{change_state, get_available_transitions, get_state};
 
 /// Wrapper-side lifecycle node adapter.
@@ -19,6 +21,7 @@ pub struct LifecycleNode {
     name: String,
     state: State,
     gate: Arc<ActivationGate>,
+    #[cfg_attr(not(any(test, feature = "roslibrust")), allow(dead_code))]
     callbacks: Box<dyn LifecycleCallbacks + Send>,
 }
 
@@ -66,6 +69,7 @@ impl LifecycleNode {
 }
 
 /// Internal wrapper plumbing (called by transport/service servers).
+#[cfg(any(test, feature = "roslibrust"))]
 impl LifecycleNode {
     /// Internal: apply a ROS transition id to the core lifecycle and update gating.
     pub(crate) fn request_transition_ros(&mut self, ros_transition_id: u8) -> Result<(State, State)> {
