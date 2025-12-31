@@ -10,6 +10,7 @@ pub use rclrust_core::lifecycle::ActivationGate;
 // Lifecycle publisher module.
 mod managed_publisher;
 pub use managed_publisher::{ManagedPublisher, PublishLike};
+
 #[cfg(feature = "roslibrust")]
 pub use crate::transport::roslibrust::publisher::RosbridgePublisher;
 
