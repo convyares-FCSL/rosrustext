@@ -124,10 +124,10 @@ fn ros_state_id(state: CoreState) -> u8 {
 }
 
 fn ros_state(state: CoreState) -> lifecycle_msgs::State {
-    let mut msg = lifecycle_msgs::State::default();
-    msg.id = ros_state_id(state);
-    msg.label = format!("{:?}", state);
-    msg
+    lifecycle_msgs::State {
+        id: ros_state_id(state),
+        label: format!("{:?}", state),
+    }
 }
 
 fn transition_label(id: u8) -> &'static str {
@@ -136,7 +136,7 @@ fn transition_label(id: u8) -> &'static str {
         2 => "cleanup",
         3 => "activate",
         4 => "deactivate",
-        5 | 6 | 7 => "shutdown",
+        5..=7 => "shutdown",
         _ => "unknown",
     }
 }

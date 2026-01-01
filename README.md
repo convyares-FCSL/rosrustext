@@ -164,6 +164,31 @@ commands, then shuts everything down cleanly (SIGINT).
 
 ---
 
+## Quickstart (single terminal)
+
+```bash
+cd /home/ecm/fcsl/rosrustext
+AUTO_KILL_ROSBRIDGE=1 ./scripts/run_all.sh
+```
+
+Expected output (abridged):
+
+```text
+[HH:MM:SS] starting rosbridge (node name: hyfleet_ring_roslibrust)
+[HH:MM:SS] starting backend
+[HH:MM:SS] starting proxy
+[HH:MM:SS] running lifecycle test
+[HH:MM:SS] lifecycle set /hyfleet_ring_roslibrust configure
+Transitioning successful
+[HH:MM:SS] lifecycle set /hyfleet_ring_roslibrust activate
+Transitioning successful
+[HH:MM:SS] lifecycle get /hyfleet_ring_roslibrust
+Active [3]
+[HH:MM:SS] done (logs: /home/ecm/fcsl/rosrustext/logs/run_all)
+```
+
+---
+
 ## Status
 
 - Core lifecycle: **implemented and fully tested**
