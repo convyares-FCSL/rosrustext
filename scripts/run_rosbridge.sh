@@ -4,6 +4,7 @@ set -euo pipefail
 ROS2_WS_ROOT="${ROS2_WS_ROOT:-/home/ecm/ros2_rust_ws/ros2_ws}"
 ROSBRIDGE_NODE_NAME="${ROSBRIDGE_NODE_NAME:-rosbridge_websocket}"
 ROSBRIDGE_NODE_NAME="${ROSBRIDGE_NODE_NAME#/}"
+ROSBRIDGE_LOG_LEVEL="${ROSBRIDGE_LOG_LEVEL:-warn}"
 BRIDGE_URL="${BRIDGE_URL:-ws://localhost:9090}"
 BRIDGE_PORT="${BRIDGE_PORT:-}"
 
@@ -52,4 +53,6 @@ if port_in_use "$BRIDGE_PORT"; then
   exit 1
 fi
 
-exec ros2 run rosbridge_server rosbridge_websocket --port "$BRIDGE_PORT" --ros-args -r "__node:=${ROSBRIDGE_NODE_NAME}"
+exec ros2 run rosbridge_server rosbridge_websocket \
+  --port "$BRIDGE_PORT" \
+  --ros-args -r "__node:=${ROSBRIDGE_NODE_NAME}" --log-level "$ROSBRIDGE_LOG_LEVEL"
