@@ -7,7 +7,13 @@ use rosrustext_core::lifecycle::{ActivationGate, LifecycleCallbacks, State};
 #[cfg(any(test, feature = "roslibrust"))]
 use super::dtos::{change_state, get_available_states, get_available_transitions, get_state};
 #[cfg(any(test, feature = "roslibrust"))]
-use rosrustext_core::lifecycle::{ available_transitions, drive, shutdown_ros_id_for_state, transition_from_ros_id } ;
+use rosrustext_core::lifecycle::{available_transitions, drive};
+#[cfg(any(test, feature = "roslibrust"))]
+use rosrustext_core::lifecycle::ALL_STATES;
+#[cfg(any(test, feature = "roslibrust"))]
+use crate::lifecycle::{shutdown_ros_id_for_state, transition_from_ros_id};
+#[cfg(test)]
+use crate::lifecycle::ros_ids;
 
 use crate::lifecycle::TransitionEvent;
 
@@ -171,27 +177,11 @@ impl LifecycleNode {
         &self,
         _req: get_available_states::Request,
     ) -> get_available_states::Response {
-        use rosrustext_core::lifecycle::State as CoreState;
-
-        // Full set of lifecycle states (primary + transition states).
-        let all = [
-            CoreState::Unconfigured,
-            CoreState::Inactive,
-            CoreState::Active,
-            CoreState::Finalized,
-            CoreState::Configuring,
-            CoreState::CleaningUp,
-            CoreState::Activating,
-            CoreState::Deactivating,
-            CoreState::ShuttingDown,
-            CoreState::ErrorProcessing,
-        ];
-
-        let states = all
+        let states = ALL_STATES
             .into_iter()
             .map(|s| get_available_states::State {
                 id: s.id(),
-                label: format!("{s:?}"),
+                label: s.label().to_string(),
             })
             .collect();
 
@@ -227,13 +217,13 @@ mod tests {
         let mut node = LifecycleNode::new("test_node", Box::new(OkCallbacks)).unwrap();
 
         let (_mid, s1) = node
-            .request_transition_ros(rosrustext_core::lifecycle::ros_ids::TRANSITION_CONFIGURE)
+            .request_transition_ros(ros_ids::TRANSITION_CONFIGURE)
             .unwrap();
         assert_eq!(s1, State::Inactive);
         assert!(!node.activation_gate().is_active());
 
         let (_mid, s2) = node
-            .request_transition_ros(rosrustext_core::lifecycle::ros_ids::TRANSITION_ACTIVATE)
+            .request_transition_ros(ros_ids::TRANSITION_ACTIVATE)
             .unwrap();
         assert_eq!(s2, State::Active);
         assert!(node.activation_gate().is_active());
@@ -244,7 +234,7 @@ mod tests {
         let mut node = LifecycleNode::new("test_node", Box::new(OkCallbacks)).unwrap();
 
         let resp = node.handle_change_state(change_state::Request {
-            transition_id: rosrustext_core::lifecycle::ros_ids::TRANSITION_CONFIGURE,
+            transition_id: ros_ids::TRANSITION_CONFIGURE,
         });
 
         assert!(resp.success);
@@ -265,9 +255,9 @@ mod tests {
     fn get_available_transitions_reports_active_state() {
         let mut node = LifecycleNode::new("test_node", Box::new(OkCallbacks)).unwrap();
 
-        node.request_transition_ros(rosrustext_core::lifecycle::ros_ids::TRANSITION_CONFIGURE)
+        node.request_transition_ros(ros_ids::TRANSITION_CONFIGURE)
             .unwrap();
-        node.request_transition_ros(rosrustext_core::lifecycle::ros_ids::TRANSITION_ACTIVATE)
+        node.request_transition_ros(ros_ids::TRANSITION_ACTIVATE)
             .unwrap();
 
         let resp = node.handle_get_available_transitions(get_available_transitions::Request);
@@ -301,13 +291,13 @@ mod tests {
         let mut node = LifecycleNode::new("test_node", Box::new(OkCallbacks)).unwrap();
         let mut rx = node.subscribe_transition_events();
 
-        node.request_transition_ros(rosrustext_core::lifecycle::ros_ids::TRANSITION_CONFIGURE)
+        node.request_transition_ros(ros_ids::TRANSITION_CONFIGURE)
             .unwrap();
 
         let ev = rx.try_recv().expect("expected transition event");
         assert_eq!(
             ev.transition_id,
-            rosrustext_core::lifecycle::ros_ids::TRANSITION_CONFIGURE
+            ros_ids::TRANSITION_CONFIGURE
         );
         assert_eq!(ev.start_state, State::Unconfigured);
         assert_eq!(ev.goal_state, State::Inactive);

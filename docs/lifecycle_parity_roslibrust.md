@@ -60,6 +60,9 @@ roslibrust-backed nodes expose lifecycle services under a private namespace:
 The Rust proxy tool (`rosrustext_lifecycle_proxy`) bridges these to standard
 ROS 2 lifecycle endpoints on the ROS graph so `ros2 lifecycle` works.
 
+The rosbridge node is launched with the target node name to satisfy ROS 2
+CLI node discovery (the roslibrust backend itself is not a ROS graph node).
+
 ---
 
 ## Transport-specific constraints (rosbridge)

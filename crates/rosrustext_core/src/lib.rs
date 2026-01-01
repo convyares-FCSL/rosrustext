@@ -7,11 +7,14 @@
 
 pub mod error;
 
+/// Configuration utilities (ROS-compatible concepts, ROS-agnostic core). - TODO
 pub mod config;
+
+/// Logging utilities (ROS-compatible concepts, ROS-agnostic core). - TODO
 pub mod logging;
 
-/// Lifecycle state machine + transition hooks (ROS-compatible concepts, ROS-agnostic core).
+/// Lifecycle state machine + transition hooks (ROS-compatible concepts, ROS-agnostic core). - WIP
 pub mod lifecycle;
 
-/// Action protocol core types (goal/feedback/result/cancel) without ROS transport.
+/// Action protocol core types (goal/feedback/result/cancel) without ROS transport.- TODO
 pub mod action;

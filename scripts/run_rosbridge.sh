@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROS2_WS_ROOT="${ROS2_WS_ROOT:-/home/ecm/ros2_rust_ws/ros2_ws}"
-ROSBRIDGE_NODE_NAME="${ROSBRIDGE_NODE_NAME:-${TARGET_NODE:-rosbridge_websocket}}"
+ROSBRIDGE_NODE_NAME="${ROSBRIDGE_NODE_NAME:-rosbridge_websocket}"
 ROSBRIDGE_NODE_NAME="${ROSBRIDGE_NODE_NAME#/}"
 BRIDGE_URL="${BRIDGE_URL:-ws://localhost:9090}"
 BRIDGE_PORT="${BRIDGE_PORT:-}"

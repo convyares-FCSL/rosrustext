@@ -61,6 +61,7 @@ standard ROS2 lifecycle managers.
 - [x] ChangeState service via rosbridge
 - [x] Wire remaining lifecycle services via rosbridge (via Rust proxy tool)
 - [x] `ros2 lifecycle set/get` works over rosbridge (proxy)
+- [x] Document rosbridge node name requirement for CLI discovery
 - [ ] Verify compatibility with Python lifecycle manager
 - [ ] Verify compatibility with C++ lifecycle manager
 

@@ -162,6 +162,9 @@ From the repo root:
 `run_all.sh` starts rosbridge, the backend app, the proxy, runs lifecycle
 commands, then shuts everything down cleanly (SIGINT).
 
+Note: rosbridge is launched with its node name set to the target node so
+`ros2 lifecycle set/get` can find it on the ROS graph.
+
 ---
 
 ## Quickstart (single terminal)

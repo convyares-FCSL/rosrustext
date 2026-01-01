@@ -120,6 +120,10 @@ End-to-end Rust lifecycle node works under a real ROS 2 Jazzy environment.
   - lifecycle CLI test
   - single-terminal `run_all.sh` orchestration
 - Improved cleanup to avoid stale rosbridge processes.
+- Refactored lifecycle core into focused modules and moved ROS ID mapping into
+  the roslibrust wrapper layer.
+- Added proxy utilities module and basic unit tests.
+- Documented rosbridge node naming requirement for ROS 2 CLI discovery.
 
 Outcome:
 `ros2 lifecycle set/get` works end-to-end over rosbridge with Rust-only tooling.

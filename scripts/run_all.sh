@@ -9,6 +9,7 @@ STARTUP_DELAY="${STARTUP_DELAY:-1}"
 STARTUP_TIMEOUT="${STARTUP_TIMEOUT:-6}"
 SKIP_PROCESS_CHECK="${SKIP_PROCESS_CHECK:-0}"
 AUTO_KILL_ROSBRIDGE="${AUTO_KILL_ROSBRIDGE:-0}"
+ROSBRIDGE_NODE_NAME="${ROSBRIDGE_NODE_NAME:-$TARGET_NODE}"
 
 mkdir -p "$LOG_DIR"
 : >"$LOG_DIR/rosbridge.log"
@@ -18,23 +19,27 @@ mkdir -p "$LOG_DIR"
 PIDS=()
 PGIDS=()
 cleanup() {
-  for pgid in "${PGIDS[@]:-}"; do
+  for (( idx=${#PGIDS[@]}-1; idx>=0; idx-- )); do
+    pgid="${PGIDS[idx]}"
     if kill -0 -- "-$pgid" 2>/dev/null; then
       kill -INT -- "-$pgid" 2>/dev/null || true
     fi
   done
-  for pid in "${PIDS[@]:-}"; do
+  for (( idx=${#PIDS[@]}-1; idx>=0; idx-- )); do
+    pid="${PIDS[idx]}"
     if kill -0 "$pid" 2>/dev/null; then
       kill -INT "$pid" 2>/dev/null || true
     fi
   done
   sleep 0.4
-  for pgid in "${PGIDS[@]:-}"; do
+  for (( idx=${#PGIDS[@]}-1; idx>=0; idx-- )); do
+    pgid="${PGIDS[idx]}"
     if kill -0 -- "-$pgid" 2>/dev/null; then
       kill -- "-$pgid" 2>/dev/null || true
     fi
   done
-  for pid in "${PIDS[@]:-}"; do
+  for (( idx=${#PIDS[@]}-1; idx>=0; idx-- )); do
+    pid="${PIDS[idx]}"
     if kill -0 "$pid" 2>/dev/null; then
       kill "$pid" 2>/dev/null || true
       pkill -P "$pid" 2>/dev/null || true
@@ -130,8 +135,9 @@ if port_in_use "$BRIDGE_PORT"; then
   fi
 fi
 
-log "starting rosbridge (node name: $TARGET_NODE)"
-TARGET_NODE="$TARGET_NODE" BRIDGE_URL="$BRIDGE_URL" start_bg rosbridge "$ROOT_DIR/scripts/run_rosbridge.sh"
+log "starting rosbridge (node name: $ROSBRIDGE_NODE_NAME)"
+ROSBRIDGE_NODE_NAME="$ROSBRIDGE_NODE_NAME" TARGET_NODE="$TARGET_NODE" BRIDGE_URL="$BRIDGE_URL" \
+  start_bg rosbridge "$ROOT_DIR/scripts/run_rosbridge.sh"
 
 if ! wait_for_port "$BRIDGE_PORT" "$STARTUP_TIMEOUT"; then
   echo "rosbridge did not bind to port ${BRIDGE_PORT} within ${STARTUP_TIMEOUT}s (see $LOG_DIR/rosbridge.log)" >&2

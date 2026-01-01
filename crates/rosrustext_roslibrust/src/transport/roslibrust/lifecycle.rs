@@ -110,7 +110,7 @@ mod tests {
         let svc = LifecycleService::new(node);
 
         let req = dtos::change_state::Request {
-            transition_id: rosrustext_core::lifecycle::ros_ids::TRANSITION_CONFIGURE,
+            transition_id: crate::lifecycle::ros_ids::TRANSITION_CONFIGURE,
         };
 
         let resp = svc.handle_change_state(req);
