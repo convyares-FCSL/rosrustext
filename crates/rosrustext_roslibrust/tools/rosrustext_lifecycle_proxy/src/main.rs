@@ -3,16 +3,18 @@ include!(concat!(env!("OUT_DIR"), "/messages.rs"));
 mod utils;
 
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use roslibrust::rosbridge::ClientHandle;
 use tracing::info;
 
 use rosrustext_core::error::{CoreError, Domain, ErrorKind, Payload, Result as CoreResult};
 use rosrustext_core::lifecycle::{
-    available_transitions as core_available_transitions, State as CoreState, ALL_STATES,
+    available_transitions as core_available_transitions, goal_state_for_transition,
+    State as CoreState, ALL_STATES,
 };
 use rosrustext_roslibrust::lifecycle::{
-    state_from_ros_id, transition_from_ros_id,
+    ros_state_id, state_from_ros_id, transition_from_ros_id,
 };
 use utils::{
     backend_path, frontend_service, lock_state, log_core_error, ros_state, ros_transition_description,
@@ -31,6 +33,13 @@ struct Backend {
     ros: ClientHandle,
     change_state: String,
     transition_event: String,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct LastEvent {
+    transition_id: u8,
+    goal_state_id: u8,
+    stamp: u64,
 }
 
 impl Backend {
@@ -83,6 +92,7 @@ async fn main() -> CoreResult<()> {
 
     let backend = Arc::new(Backend::new(ros_backend, &config.target_node));
     let lifecycle_state = Arc::new(Mutex::new(CoreState::Unconfigured));
+    let last_event: Arc<Mutex<Option<LastEvent>>> = Arc::new(Mutex::new(None));
 
     let change_state_srv = frontend_service(&config.target_node, SERVICE_CHANGE_STATE);
     let get_state_srv = frontend_service(&config.target_node, SERVICE_GET_STATE);
@@ -96,20 +106,48 @@ async fn main() -> CoreResult<()> {
         config.node_name, config.target_node, config.bridge_url, config.target_node, BACKEND_NAMESPACE
     );
 
+    let change_state_timeout = Duration::from_millis(
+        std::env::var("ROSRUSTEXT_CHANGE_STATE_TIMEOUT_MS")
+            .ok()
+            .and_then(|value| value.parse::<u64>().ok())
+            .unwrap_or(200),
+    );
+
     let backend_change = Arc::clone(&backend);
+    let state_for_change = Arc::clone(&lifecycle_state);
+    let last_event_change = Arc::clone(&last_event);
     let _change_handle = ros_server
         .advertise_service::<ChangeState, _>(&change_state_srv, move |req: ChangeStateRequest| {
             let transition_id = req.transition.id;
-            if transition_from_ros_id(transition_id).is_none() {
-                let err = CoreError::warn()
-                    .domain(Domain::Lifecycle)
-                    .kind(ErrorKind::InvalidArgument)
-                    .msg("unknown ROS transition id")
-                    .payload(Payload::Code(transition_id as u32))
-                    .build();
-                log_core_error(err);
-                return Ok(ChangeStateResponse { success: false });
-            }
+            let transition = match transition_from_ros_id(transition_id) {
+                Some(transition) => transition,
+                None => {
+                    let err = CoreError::warn()
+                        .domain(Domain::Lifecycle)
+                        .kind(ErrorKind::InvalidArgument)
+                        .msg("unknown ROS transition id")
+                        .payload(Payload::Code(transition_id as u32))
+                        .build();
+                    log_core_error(err);
+                    return Ok(ChangeStateResponse { success: false });
+                }
+            };
+
+            let start_state = match lock_state(&state_for_change, "change_state") {
+                Ok(guard) => *guard,
+                Err(err) => {
+                    log_core_error(err);
+                    return Ok(ChangeStateResponse { success: false });
+                }
+            };
+            let expected_goal_state = match goal_state_for_transition(start_state, transition) {
+                Ok(state) => state,
+                Err(err) => {
+                    log_core_error(err);
+                    return Ok(ChangeStateResponse { success: false });
+                }
+            };
+            let expected_goal_state_id = ros_state_id(expected_goal_state);
 
             let backend = Arc::clone(&backend_change);
             tokio::spawn(async move {
@@ -131,10 +169,33 @@ async fn main() -> CoreResult<()> {
                 }
             });
 
+            let last_event = Arc::clone(&last_event_change);
+            tokio::spawn(async move {
+                tokio::time::sleep(change_state_timeout).await;
+                let snapshot = match last_event.lock() {
+                    Ok(guard) => *guard,
+                    Err(_) => None,
+                };
+                let ok = snapshot.map_or(false, |ev| {
+                    ev.transition_id == transition_id && ev.goal_state_id == expected_goal_state_id
+                });
+                if !ok {
+                    log_core_error(
+                        CoreError::warn()
+                            .domain(Domain::Lifecycle)
+                            .kind(ErrorKind::Timeout)
+                            .msg("change_state not confirmed by transition_event")
+                            .payload(Payload::Code(transition_id as u32))
+                            .build(),
+                    );
+                }
+            });
+
             Ok(ChangeStateResponse { success: true })
         })
         .await
         .map_err(|err| transport_error("advertise change_state", err))?;
+
 
     let state_get = Arc::clone(&lifecycle_state);
     let _get_state_handle = ros_server
@@ -208,9 +269,17 @@ async fn main() -> CoreResult<()> {
         .map_err(|err| transport_error("subscribe transition_event", err))?;
 
     let state_events = Arc::clone(&lifecycle_state);
+    let last_event_updates = Arc::clone(&last_event);
     tokio::spawn(async move {
         loop {
             let msg = backend_event_sub.next().await;
+            if let Ok(mut guard) = last_event_updates.lock() {
+                *guard = Some(LastEvent {
+                    transition_id: msg.transition.id,
+                    goal_state_id: msg.goal_state.id,
+                    stamp: msg.timestamp,
+                });
+            }
             if let Err(err) = update_state_from_event(&state_events, &msg) {
                 log_core_error(err);
             }

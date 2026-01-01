@@ -52,6 +52,14 @@ Required topic:
 - Unsupported transition IDs
 - Re-entrant ChangeState storms
 
+## Transport caveat (informative)
+
+Some transports (notably rosbridge) execute service callbacks synchronously.
+Blocking inside a ChangeState handler can starve the websocket executor and make
+`ros2 lifecycle set` time out even when the backend succeeds. Adapters should
+avoid waiting inside the callback; treat `transition_event` as the source of
+truth and log when a requested transition is not observed.
+
 ## Definition of Done
 
 Lifecycle parity is complete when:

@@ -15,7 +15,7 @@ This file answers:
 
 | Service | ROS Type | Status | Notes |
 |------|---------|--------|------|
-| `change_state` | `lifecycle_msgs/srv/ChangeState` | ✅ Implemented | Provided via Rust proxy tool |
+| `change_state` | `lifecycle_msgs/srv/ChangeState` | ✅ Implemented | Proxy returns immediately; truth confirmed via `transition_event` |
 | `get_state` | `lifecycle_msgs/srv/GetState` | ✅ Implemented | Provided via Rust proxy tool |
 | `get_available_transitions` | `lifecycle_msgs/srv/GetAvailableTransitions` | ✅ Implemented | Provided via Rust proxy tool |
 | `get_available_states` | `lifecycle_msgs/srv/GetAvailableStates` | ✅ Implemented | Provided via Rust proxy tool |
@@ -44,6 +44,23 @@ This file answers:
 | Shutdown from any state | ✅ | Best-effort path implemented |
 | ErrorProcessing handling | ✅ | Delegated to core |
 | Fatal error policy | ⏳ | Needs explicit definition |
+
+### ChangeState truthfulness (rosbridge caveat)
+
+`rosbridge` service handlers are synchronous. Blocking inside the proxy
+`change_state` callback can starve the websocket executor and cause ROS CLI
+timeouts, even when the backend succeeds.
+
+Current behavior (by design):
+
+- Proxy returns `success: true` immediately for valid transition IDs.
+- Backend call is fire-and-forget.
+- `transition_event` is the source of truth for state.
+- If no matching event arrives within a short window, the proxy logs a warning.
+  The warning window can be tuned with `ROSRUSTEXT_CHANGE_STATE_TIMEOUT_MS`.
+
+This preserves ROS tooling usability while keeping a clear signal when the
+backend did not actually transition.
 
 ---
 
@@ -104,4 +121,5 @@ The roslibrust adapter is considered lifecycle-complete when:
 A parallel document will exist for:
 - `lifecycle_parity_ros2_rust.md`
 
-The two adapter docum
+The two adapter documents should match this spec while capturing adapter-specific
+constraints and deviations.
