@@ -156,11 +156,7 @@ TARGET_NODE="$TARGET_NODE" BRIDGE_URL="$BRIDGE_URL" start_bg proxy "$ROOT_DIR/sc
 
 sleep "$STARTUP_DELAY"
 
-log "all components running (logs: $LOG_DIR)"
-log "press Ctrl-C to stop"
+log "running lifecycle test"
+TARGET_NODE="$TARGET_NODE" "$ROOT_DIR/scripts/run_lifecycle_test.sh"
 
-trap 'log "shutting down..."; cleanup; exit 0' INT TERM
-
-while true; do
-  sleep 1
-done
+log "done (logs: $LOG_DIR)"
