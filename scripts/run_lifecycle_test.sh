@@ -6,6 +6,8 @@ LIFECYCLE_TIMEOUT="${LIFECYCLE_TIMEOUT:-5}"
 SERVICE_WAIT_TIMEOUT="${SERVICE_WAIT_TIMEOUT:-6}"
 SERVICE_READY_DELAY="${SERVICE_READY_DELAY:-1}"
 TOPIC_WAIT_TIMEOUT="${TOPIC_WAIT_TIMEOUT:-6}"
+STATE_WAIT_TIMEOUT="${STATE_WAIT_TIMEOUT:-5}"
+STATE_POLL_INTERVAL="${STATE_POLL_INTERVAL:-0.2}"
 
 log() {
   echo "[$(date +%H:%M:%S)] $*"
@@ -28,6 +30,60 @@ run_cmd() {
   if [[ -n "$output" ]]; then
     echo "$output"
   fi
+}
+
+capture_state() {
+  timeout "${LIFECYCLE_TIMEOUT}s" ros2 lifecycle get "/${TARGET_NODE}" 2>&1
+}
+
+assert_state_not() {
+  local forbidden="$1"
+  local label="$2"
+  log "$label"
+  set +e
+  local output
+  output=$(capture_state)
+  local status=$?
+  set -e
+  if [[ $status -eq 124 ]]; then
+    log "$label timed out after ${LIFECYCLE_TIMEOUT}s"
+    return 1
+  fi
+  if [[ $status -ne 0 ]]; then
+    log "$label failed (exit $status)"
+    [[ -n "$output" ]] && echo "$output"
+    return 1
+  fi
+  if echo "$output" | rg -q "^${forbidden} \\["; then
+    log "$label expected not ${forbidden}"
+    echo "$output"
+    return 1
+  fi
+  [[ -n "$output" ]] && echo "$output"
+}
+
+wait_for_state() {
+  local expected="$1"
+  local timeout_s="$2"
+  local start
+  start="$(date +%s)"
+  while true; do
+    set +e
+    local output
+    output=$(capture_state)
+    local status=$?
+    set -e
+    if [[ $status -eq 0 ]] && echo "$output" | rg -q "^${expected} \\["; then
+      echo "$output"
+      return 0
+    fi
+    if (( $(date +%s) - start >= timeout_s )); then
+      log "state did not reach ${expected} within ${timeout_s}s"
+      [[ -n "$output" ]] && echo "$output"
+      return 1
+    fi
+    sleep "$STATE_POLL_INTERVAL"
+  done
 }
 
 wait_for_service() {
@@ -85,11 +141,13 @@ else
 fi
 
 run_cmd "lifecycle set /${TARGET_NODE} configure" ros2 lifecycle set "/${TARGET_NODE}" configure
+assert_state_not "Unconfigured" "lifecycle get /${TARGET_NODE} (post-configure)"
 sleep 1
 
 run_cmd "lifecycle set /${TARGET_NODE} activate" ros2 lifecycle set "/${TARGET_NODE}" activate
+assert_state_not "Inactive" "lifecycle get /${TARGET_NODE} (post-activate)"
 
-run_cmd "lifecycle get /${TARGET_NODE}" ros2 lifecycle get "/${TARGET_NODE}"
+wait_for_state "Active" "$STATE_WAIT_TIMEOUT"
 
 if [[ -n "$echo_pid" ]]; then
   wait "$echo_pid" || true

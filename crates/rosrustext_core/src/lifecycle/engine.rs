@@ -282,4 +282,103 @@ mod tests {
         let (_mid, end) = drive(State::Unconfigured, Transition::Configure, &mut cb).unwrap();
         assert_eq!(end, State::Finalized);
     }
+
+    #[derive(Clone, Copy)]
+    struct ScenarioCallbacks {
+        configure: CallbackResult,
+        activate: CallbackResult,
+        deactivate: CallbackResult,
+        cleanup: CallbackResult,
+        shutdown: CallbackResult,
+        on_error: CallbackResult,
+    }
+
+    impl ScenarioCallbacks {
+        fn for_transition(
+            transition: Transition,
+            result: CallbackResult,
+            on_error: CallbackResult,
+        ) -> Self {
+            let mut cb = Self {
+                configure: CallbackResult::Success,
+                activate: CallbackResult::Success,
+                deactivate: CallbackResult::Success,
+                cleanup: CallbackResult::Success,
+                shutdown: CallbackResult::Success,
+                on_error,
+            };
+            match transition {
+                Transition::Configure => cb.configure = result,
+                Transition::Activate => cb.activate = result,
+                Transition::Deactivate => cb.deactivate = result,
+                Transition::Cleanup => cb.cleanup = result,
+                Transition::Shutdown => cb.shutdown = result,
+            }
+            cb
+        }
+    }
+
+    impl LifecycleCallbacks for ScenarioCallbacks {
+        fn on_configure(&mut self) -> CallbackResult {
+            self.configure
+        }
+        fn on_activate(&mut self) -> CallbackResult {
+            self.activate
+        }
+        fn on_deactivate(&mut self) -> CallbackResult {
+            self.deactivate
+        }
+        fn on_cleanup(&mut self) -> CallbackResult {
+            self.cleanup
+        }
+        fn on_shutdown(&mut self) -> CallbackResult {
+            self.shutdown
+        }
+        fn on_error(&mut self) -> CallbackResult {
+            self.on_error
+        }
+    }
+
+    fn drive_once(
+        start: State,
+        transition: Transition,
+        result: CallbackResult,
+        on_error: CallbackResult,
+    ) -> State {
+        let mut cb = ScenarioCallbacks::for_transition(transition, result, on_error);
+        let (_mid, end) = drive(start, transition, &mut cb).unwrap();
+        end
+    }
+
+    #[test]
+    fn failure_paths_return_to_previous_state() {
+        let cases = [
+            (State::Unconfigured, Transition::Configure, State::Unconfigured),
+            (State::Inactive, Transition::Activate, State::Inactive),
+            (State::Active, Transition::Deactivate, State::Active),
+            (State::Inactive, Transition::Cleanup, State::Inactive),
+            (State::Active, Transition::Shutdown, State::Finalized),
+        ];
+
+        for (start, transition, expected) in cases {
+            let end = drive_once(start, transition, CallbackResult::Failure, CallbackResult::Success);
+            assert_eq!(end, expected);
+        }
+    }
+
+    #[test]
+    fn error_paths_follow_error_processing_rules() {
+        let cases = [
+            (State::Unconfigured, Transition::Configure, State::Unconfigured),
+            (State::Inactive, Transition::Activate, State::Unconfigured),
+            (State::Active, Transition::Deactivate, State::Unconfigured),
+            (State::Inactive, Transition::Cleanup, State::Unconfigured),
+            (State::Active, Transition::Shutdown, State::Finalized),
+        ];
+
+        for (start, transition, expected) in cases {
+            let end = drive_once(start, transition, CallbackResult::Error, CallbackResult::Success);
+            assert_eq!(end, expected);
+        }
+    }
 }

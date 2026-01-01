@@ -19,7 +19,6 @@ This file answers:
 | `get_state` | `lifecycle_msgs/srv/GetState` | ✅ Implemented | Provided via Rust proxy tool |
 | `get_available_transitions` | `lifecycle_msgs/srv/GetAvailableTransitions` | ✅ Implemented | Provided via Rust proxy tool |
 | `get_available_states` | `lifecycle_msgs/srv/GetAvailableStates` | ✅ Implemented | Provided via Rust proxy tool |
-| `get_transition_graph` | `lifecycle_msgs/srv/GetTransitionGraph` | ⏳ Pending | Data already exists in core |
 | `create` | internal | ❌ Omitted | Wrapper-only concern |
 | `destroy` | internal | ❌ Omitted | Wrapper-only concern |
 
@@ -54,10 +53,15 @@ timeouts, even when the backend succeeds.
 Current behavior (by design):
 
 - Proxy returns `success: true` immediately for valid transition IDs.
+- Proxy updates its local state to the transitional state right away
+  (Configuring/Activating/Deactivating/CleaningUp/ShuttingDown).
+- `get_state` reports the expected goal primary state while a transition is
+  pending (rclcpp-compatible observable behavior).
 - Backend call is fire-and-forget.
-- `transition_event` is the source of truth for state.
-- If no matching event arrives within a short window, the proxy logs a warning.
-  The warning window can be tuned with `ROSRUSTEXT_CHANGE_STATE_TIMEOUT_MS`.
+- `transition_event` is the source of truth for final state.
+- If no matching event arrives within a short window, the proxy logs a warning
+  and reverts local state to the previous primary state. The warning window can
+  be tuned with `ROSRUSTEXT_CHANGE_STATE_TIMEOUT_MS`.
 
 This preserves ROS tooling usability while keeping a clear signal when the
 backend did not actually transition.

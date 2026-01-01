@@ -18,7 +18,6 @@ Required services (ROS2 lifecycle):
 - `get_state` — `lifecycle_msgs/srv/GetState`
 - `get_available_transitions` — `lifecycle_msgs/srv/GetAvailableTransitions`
 - `get_available_states` — `lifecycle_msgs/srv/GetAvailableStates`
-- `get_transition_graph` — `lifecycle_msgs/srv/GetTransitionGraph`
 
 Required topic:
 - `transition_event` — `lifecycle_msgs/msg/TransitionEvent`
@@ -57,8 +56,11 @@ Required topic:
 Some transports (notably rosbridge) execute service callbacks synchronously.
 Blocking inside a ChangeState handler can starve the websocket executor and make
 `ros2 lifecycle set` time out even when the backend succeeds. Adapters should
-avoid waiting inside the callback; treat `transition_event` as the source of
-truth and log when a requested transition is not observed.
+avoid waiting inside the callback; update local state optimistically to the
+transitional state, treat `transition_event` as the source of truth for final
+state, and log/revert if the expected event is not observed. To preserve
+rclcpp-style observables, `get_state` may report the expected goal primary
+state immediately after a successful ChangeState response.
 
 ## Definition of Done
 

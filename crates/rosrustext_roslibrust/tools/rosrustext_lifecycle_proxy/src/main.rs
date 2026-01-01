@@ -2,6 +2,7 @@ include!(concat!(env!("OUT_DIR"), "/messages.rs"));
 
 mod utils;
 
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -10,11 +11,11 @@ use tracing::info;
 
 use rosrustext_core::error::{CoreError, Domain, ErrorKind, Payload, Result as CoreResult};
 use rosrustext_core::lifecycle::{
-    available_transitions as core_available_transitions, goal_state_for_transition,
-    State as CoreState, ALL_STATES,
+    available_transitions as core_available_transitions, begin, goal_state_for_transition,
+    State as CoreState, Transition, ALL_STATES,
 };
 use rosrustext_roslibrust::lifecycle::{
-    ros_state_id, state_from_ros_id, transition_from_ros_id,
+    ros_state_id, ros_transition_id, state_from_ros_id, transition_from_ros_id,
 };
 use utils::{
     backend_path, frontend_service, lock_state, log_core_error, ros_state, ros_transition_description,
@@ -36,8 +37,7 @@ struct Backend {
 }
 
 #[derive(Clone, Copy, Debug)]
-struct LastEvent {
-    transition_id: u8,
+struct EventInfo {
     goal_state_id: u8,
     stamp: u64,
 }
@@ -77,6 +77,17 @@ fn update_state_from_event(
     Ok(())
 }
 
+fn transition_from_label(label: &str) -> Option<Transition> {
+    match label.trim().to_ascii_lowercase().as_str() {
+        "configure" => Some(Transition::Configure),
+        "activate" => Some(Transition::Activate),
+        "deactivate" => Some(Transition::Deactivate),
+        "cleanup" => Some(Transition::Cleanup),
+        "shutdown" => Some(Transition::Shutdown),
+        _ => None,
+    }
+}
+
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> CoreResult<()> {
     tracing_subscriber::fmt::init();
@@ -92,7 +103,8 @@ async fn main() -> CoreResult<()> {
 
     let backend = Arc::new(Backend::new(ros_backend, &config.target_node));
     let lifecycle_state = Arc::new(Mutex::new(CoreState::Unconfigured));
-    let last_event: Arc<Mutex<Option<LastEvent>>> = Arc::new(Mutex::new(None));
+    let pending_goal_state = Arc::new(Mutex::new(None));
+    let event_map: Arc<Mutex<HashMap<u8, EventInfo>>> = Arc::new(Mutex::new(HashMap::new()));
 
     let change_state_srv = frontend_service(&config.target_node, SERVICE_CHANGE_STATE);
     let get_state_srv = frontend_service(&config.target_node, SERVICE_GET_STATE);
@@ -115,39 +127,88 @@ async fn main() -> CoreResult<()> {
 
     let backend_change = Arc::clone(&backend);
     let state_for_change = Arc::clone(&lifecycle_state);
-    let last_event_change = Arc::clone(&last_event);
-    let _change_handle = ros_server
-        .advertise_service::<ChangeState, _>(&change_state_srv, move |req: ChangeStateRequest| {
-            let transition_id = req.transition.id;
-            let transition = match transition_from_ros_id(transition_id) {
-                Some(transition) => transition,
+    let pending_goal_for_change = Arc::clone(&pending_goal_state);
+    let event_map_change = Arc::clone(&event_map);
+    let _change_handle = ros_server.advertise_service::<ChangeState, _>(
+        &change_state_srv,
+        move |req: ChangeStateRequest| {
+            let mut req = req;
+            info!(
+                "change_state request id={} label='{}'",
+                req.transition.id, req.transition.label
+            );
+            let mut guard = match lock_state(&state_for_change, "change_state") {
+                Ok(guard) => guard,
+                Err(err) => {
+                    log_core_error(err);
+                    info!("change_state response success=false (state lock)");
+                    return Ok(ChangeStateResponse { success: false });
+                }
+            };
+            let start_state = *guard;
+            let transition = match transition_from_ros_id(req.transition.id)
+                .or_else(|| transition_from_label(&req.transition.label))
+            {
+                Some(transition) => {
+                    if let Some(ros_id) = ros_transition_id(start_state, transition) {
+                        req.transition.id = ros_id;
+                    }
+                    transition
+                }
                 None => {
                     let err = CoreError::warn()
                         .domain(Domain::Lifecycle)
                         .kind(ErrorKind::InvalidArgument)
                         .msg("unknown ROS transition id")
-                        .payload(Payload::Code(transition_id as u32))
+                        .payload(Payload::Code(req.transition.id as u32))
                         .build();
                     log_core_error(err);
+                    info!("change_state response success=false (unknown transition)");
                     return Ok(ChangeStateResponse { success: false });
                 }
             };
+            let transition_id = req.transition.id;
 
-            let start_state = match lock_state(&state_for_change, "change_state") {
-                Ok(guard) => *guard,
-                Err(err) => {
-                    log_core_error(err);
-                    return Ok(ChangeStateResponse { success: false });
-                }
-            };
-            let expected_goal_state = match goal_state_for_transition(start_state, transition) {
+            let intermediate_state = match begin(start_state, transition) {
                 Ok(state) => state,
                 Err(err) => {
                     log_core_error(err);
+                    info!("change_state response success=false (invalid transition)");
                     return Ok(ChangeStateResponse { success: false });
                 }
             };
-            let expected_goal_state_id = ros_state_id(expected_goal_state);
+            *guard = intermediate_state;
+            drop(guard);
+
+            let expected_goal_state = match goal_state_for_transition(start_state, transition) {
+                Ok(state) => Some(state),
+                Err(_err) => {
+                    log_core_error(
+                        CoreError::warn()
+                            .domain(Domain::Lifecycle)
+                            .kind(ErrorKind::InvalidTransition)
+                            .msg("change_state requested while local state is stale")
+                            .payload(Payload::LifecycleTransition {
+                                from_state: start_state.id(),
+                                via_transition: transition.id(),
+                            })
+                            .build(),
+                    );
+                    None
+                }
+            };
+            let expected_goal_state_id = expected_goal_state.map(ros_state_id);
+
+            if let Some(goal) = expected_goal_state {
+                if let Ok(mut guard) = pending_goal_for_change.lock() {
+                    *guard = Some(goal);
+                }
+            }
+
+            let last_stamp_before = match event_map_change.lock() {
+                Ok(guard) => guard.get(&transition_id).map(|ev| ev.stamp).unwrap_or(0),
+                Err(_) => 0,
+            };
 
             let backend = Arc::clone(&backend_change);
             tokio::spawn(async move {
@@ -169,17 +230,30 @@ async fn main() -> CoreResult<()> {
                 }
             });
 
-            let last_event = Arc::clone(&last_event_change);
+            let state_for_timeout = Arc::clone(&state_for_change);
+            let pending_goal_for_timeout = Arc::clone(&pending_goal_for_change);
+            let event_map = Arc::clone(&event_map_change);
             tokio::spawn(async move {
                 tokio::time::sleep(change_state_timeout).await;
-                let snapshot = match last_event.lock() {
-                    Ok(guard) => *guard,
+                let snapshot = match event_map.lock() {
+                    Ok(guard) => guard.get(&transition_id).copied(),
                     Err(_) => None,
                 };
                 let ok = snapshot.map_or(false, |ev| {
-                    ev.transition_id == transition_id && ev.goal_state_id == expected_goal_state_id
+                    if ev.stamp == last_stamp_before {
+                        return false;
+                    }
+                    expected_goal_state_id.map_or(true, |expected| ev.goal_state_id == expected)
                 });
                 if !ok {
+                    if let Ok(mut guard) = lock_state(&state_for_timeout, "change_state_timeout") {
+                        if *guard == intermediate_state {
+                            *guard = start_state;
+                        }
+                    }
+                    if let Ok(mut guard) = pending_goal_for_timeout.lock() {
+                        *guard = None;
+                    }
                     log_core_error(
                         CoreError::warn()
                             .domain(Domain::Lifecycle)
@@ -191,15 +265,26 @@ async fn main() -> CoreResult<()> {
                 }
             });
 
+            info!("change_state response success=true");
             Ok(ChangeStateResponse { success: true })
-        })
-        .await
-        .map_err(|err| transport_error("advertise change_state", err))?;
+        },
+    )
+    .await
+    .map_err(|err| transport_error("advertise change_state", err))?;
 
 
     let state_get = Arc::clone(&lifecycle_state);
+    let pending_goal_get = Arc::clone(&pending_goal_state);
     let _get_state_handle = ros_server
         .advertise_service::<GetState, _>(&get_state_srv, move |req: GetStateRequest| {
+            if let Ok(guard) = pending_goal_get.lock() {
+                if let Some(goal) = *guard {
+                    let _ = req;
+                    return Ok(GetStateResponse {
+                        current_state: ros_state(goal),
+                    });
+                }
+            }
             let state = match lock_state(&state_get, "get_state") {
                 Ok(guard) => guard,
                 Err(err) => {
@@ -269,19 +354,25 @@ async fn main() -> CoreResult<()> {
         .map_err(|err| transport_error("subscribe transition_event", err))?;
 
     let state_events = Arc::clone(&lifecycle_state);
-    let last_event_updates = Arc::clone(&last_event);
+    let event_map_updates = Arc::clone(&event_map);
+    let pending_goal_updates = Arc::clone(&pending_goal_state);
     tokio::spawn(async move {
         loop {
             let msg = backend_event_sub.next().await;
-            if let Ok(mut guard) = last_event_updates.lock() {
-                *guard = Some(LastEvent {
-                    transition_id: msg.transition.id,
-                    goal_state_id: msg.goal_state.id,
-                    stamp: msg.timestamp,
-                });
+            if let Ok(mut guard) = event_map_updates.lock() {
+                guard.insert(
+                    msg.transition.id,
+                    EventInfo {
+                        goal_state_id: msg.goal_state.id,
+                        stamp: msg.timestamp,
+                    },
+                );
             }
             if let Err(err) = update_state_from_event(&state_events, &msg) {
                 log_core_error(err);
+            }
+            if let Ok(mut guard) = pending_goal_updates.lock() {
+                *guard = None;
             }
             if let Err(err) = transition_pub.publish(&msg).await {
                 log_core_error(transport_error("transition_event publish failed", err));
