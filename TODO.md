@@ -63,7 +63,8 @@ standard ROS2 lifecycle managers.
 - [x] `ros2 lifecycle set/get` works over rosbridge (proxy)
 - [x] Document rosbridge node name requirement for CLI discovery
 - [ ] Verify compatibility with Python lifecycle manager
-- [ ] Verify compatibility with C++ lifecycle manager
+- [x] Verify compatibility with C++ lifecycle manager (nav2_lifecycle_manager)
+- [x] Bond heartbeat support for Nav2 lifecycle manager
 
 ### Error & shutdown policy
 - [x] ErrorProcessing recovery delegated to wrapper
@@ -111,6 +112,7 @@ standard ROS2 lifecycle managers.
 - [ ] Example showing publisher + timer gating
 - [x] Rust lifecycle proxy tool (rosbridge)
 - [x] Local run scripts (rosbridge/backend/proxy/lifecycle test)
+- [x] Nav2 bond validation script
 
 ---
 

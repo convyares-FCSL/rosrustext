@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>bond</name>
+  <version>0.0.0</version>
+  <description>Local override for roslibrust codegen.</description>
+  <maintainer email="dev@localhost">rosrustext</maintainer>
+  <license>Apache-2.0</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend>std_msgs</depend>
+</package>

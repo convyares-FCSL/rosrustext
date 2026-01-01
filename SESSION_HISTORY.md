@@ -130,6 +130,24 @@ Outcome:
 
 ---
 
+## Session 9 – Nav2 lifecycle manager parity + bond
+- Implemented optimistic transitional state reporting in the proxy to match
+  rclcpp-style observables during transitions.
+- Added per-transition event tracking to avoid false timeout warnings when
+  configure/activate happen back-to-back.
+- Implemented minimal bond heartbeat support (`bond/msg/Status`) in the proxy
+  so `nav2_lifecycle_manager` bonds succeed without disabling bond.
+- Added local ROS message override for bond to avoid roslibrust codegen
+  parsing issues with `bond/Constants`.
+- Added `test_nav2_bond.sh` for end-to-end validation with Nav2.
+- Documented bond behavior and updated parity docs.
+
+Outcome:
+Nav2 lifecycle manager can configure/activate rosrustext nodes over rosbridge
+with bond enabled.
+
+---
+
 ## Guiding principle
 
 **Model lifecycle truth once, test it in isolation,

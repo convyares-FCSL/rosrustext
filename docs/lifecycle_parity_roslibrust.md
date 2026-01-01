@@ -29,6 +29,7 @@ This file answers:
 | Topic | ROS Type | Status | Notes |
 |------|---------|--------|------|
 | `transition_event` | `lifecycle_msgs/msg/TransitionEvent` | ✅ Implemented | Bridged by proxy from backend events |
+| `/bond` | `bond/msg/Status` | ✅ Implemented | Proxy heartbeat for Nav2 lifecycle manager |
 
 ---
 
@@ -65,6 +66,26 @@ Current behavior (by design):
 
 This preserves ROS tooling usability while keeping a clear signal when the
 backend did not actually transition.
+
+### Bond compatibility (Nav2 lifecycle manager)
+
+Nav2 uses `bond` to verify that managed nodes are alive after transitions.
+The proxy provides a minimal bond heartbeat so Nav2 can manage roslibrust
+nodes without disabling bond.
+
+Current behavior:
+
+- Publishes `bond/msg/Status` on `/bond`
+- `id` is the target node name, `instance_id` is generated per proxy start
+- Heartbeats are sent while the node is in any non-finalized state
+
+This is intentionally minimal (publish-only) and designed for compatibility
+with `nav2_lifecycle_manager` when rosbridge QoS settings are fixed.
+
+Verification:
+
+- `scripts/test_nav2_bond.sh`
+- `ros2 run nav2_lifecycle_manager lifecycle_manager --ros-args -p node_names:="[hyfleet_ring_roslibrust]" -p autostart:=true`
 
 ---
 

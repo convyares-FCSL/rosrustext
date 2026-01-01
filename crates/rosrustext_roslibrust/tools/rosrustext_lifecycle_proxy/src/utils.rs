@@ -16,6 +16,7 @@ pub const SERVICE_GET_STATE: &str = "get_state";
 pub const SERVICE_GET_AVAILABLE_STATES: &str = "get_available_states";
 pub const SERVICE_GET_AVAILABLE_TRANSITIONS: &str = "get_available_transitions";
 pub const TOPIC_TRANSITION_EVENT: &str = "transition_event";
+pub const TOPIC_BOND: &str = "/bond";
 
 pub struct Config {
     pub node_name: String,

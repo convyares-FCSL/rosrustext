@@ -120,6 +120,7 @@ The intent is **boring correctness**, not convenience magic.
 - `roslibrust` via rosbridge (WebSocket)
 - Lifecycle services exposed over rosbridge via a Rust proxy tool
 - Publisher and timer gating enforced in Rust
+- Nav2 lifecycle manager bond compatibility (heartbeat only)
 
 Additional transports can be added without touching `rosrustext_core`.
 
@@ -158,6 +159,7 @@ From the repo root:
 - `./scripts/run_proxy.sh`
 - `./scripts/run_lifecycle_test.sh`
 - `./scripts/run_all.sh` (single-terminal end-to-end run)
+- `./scripts/test_nav2_bond.sh` (rosbridge + backend + proxy + nav2 manager)
 
 `run_all.sh` starts rosbridge, the backend app, the proxy, runs lifecycle
 commands, then shuts everything down cleanly (SIGINT).
@@ -188,6 +190,20 @@ Transitioning successful
 [HH:MM:SS] lifecycle get /hyfleet_ring_roslibrust
 Active [3]
 [HH:MM:SS] done (logs: /home/ecm/fcsl/rosrustext/logs/run_all)
+```
+
+## Nav2 bond validation
+
+```bash
+cd /home/ecm/fcsl/rosrustext
+./scripts/test_nav2_bond.sh
+```
+
+Expected output (abridged):
+
+```text
+[HH:MM:SS] starting nav2 lifecycle manager
+[HH:MM:SS] nav2 lifecycle manager reports active
 ```
 
 ---

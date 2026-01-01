@@ -22,6 +22,9 @@ Required services (ROS2 lifecycle):
 Required topic:
 - `transition_event` — `lifecycle_msgs/msg/TransitionEvent`
 
+Additional (Nav2 compatibility):
+- `/bond` — `bond/msg/Status` (heartbeat for lifecycle manager liveness checks)
+
 ## Required Semantics (Normative)
 
 - State model:
@@ -61,6 +64,14 @@ transitional state, treat `transition_event` as the source of truth for final
 state, and log/revert if the expected event is not observed. To preserve
 rclcpp-style observables, `get_state` may report the expected goal primary
 state immediately after a successful ChangeState response.
+
+## Nav2 bond compatibility (informative)
+
+Nav2 lifecycle manager uses `bond` to ensure managed nodes remain alive after
+transitions. Adapters that want Nav2 parity should provide a minimal bond
+heartbeat on `/bond` using `bond/msg/Status`, with `id` matching the managed
+node name and a unique `instance_id`. Heartbeats should run while the node is
+managed (configured/active) and stop on shutdown or finalization.
 
 ## Definition of Done
 

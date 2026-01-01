@@ -3,10 +3,13 @@ include!(concat!(env!("OUT_DIR"), "/messages.rs"));
 mod utils;
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc, Mutex,
+};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use roslibrust::rosbridge::ClientHandle;
+use roslibrust::rosbridge::{ClientHandle, Publisher};
 use tracing::info;
 
 use rosrustext_core::error::{CoreError, Domain, ErrorKind, Payload, Result as CoreResult};
@@ -20,15 +23,17 @@ use rosrustext_roslibrust::lifecycle::{
 use utils::{
     backend_path, frontend_service, lock_state, log_core_error, ros_state, ros_transition_description,
     transport_error, Config, BACKEND_NAMESPACE, SERVICE_CHANGE_STATE, SERVICE_GET_AVAILABLE_STATES,
-    SERVICE_GET_AVAILABLE_TRANSITIONS, SERVICE_GET_STATE, TOPIC_TRANSITION_EVENT,
+    SERVICE_GET_AVAILABLE_TRANSITIONS, SERVICE_GET_STATE, TOPIC_BOND, TOPIC_TRANSITION_EVENT,
 };
 
+use bond::Status as BondStatus;
 use lifecycle_msgs::{
     ChangeState, ChangeStateRequest, ChangeStateResponse, GetAvailableStates,
     GetAvailableStatesRequest, GetAvailableStatesResponse, GetAvailableTransitions,
     GetAvailableTransitionsRequest, GetAvailableTransitionsResponse, GetState, GetStateRequest,
     GetStateResponse, TransitionEvent as RosTransitionEvent,
 };
+use std_msgs::Header as StdHeader;
 
 struct Backend {
     ros: ClientHandle,
@@ -36,10 +41,83 @@ struct Backend {
     transition_event: String,
 }
 
+struct BondAgent {
+    status_pub: Arc<Publisher<BondStatus>>,
+    active: Arc<AtomicBool>,
+    id: String,
+    instance_id: String,
+    heartbeat_period: Duration,
+    heartbeat_timeout: Duration,
+}
+
 #[derive(Clone, Copy, Debug)]
 struct EventInfo {
     goal_state_id: u8,
     stamp: u64,
+}
+
+impl BondAgent {
+    fn new(
+        status_pub: Arc<Publisher<BondStatus>>,
+        id: String,
+        heartbeat_period: Duration,
+        heartbeat_timeout: Duration,
+    ) -> Self {
+        let instance_id = format!("rosrustext_proxy_{}", now_nanos());
+        Self {
+            status_pub,
+            active: Arc::new(AtomicBool::new(false)),
+            id,
+            instance_id,
+            heartbeat_period,
+            heartbeat_timeout,
+        }
+    }
+
+    fn set_active(&self, enable: bool) {
+        let was_active = self.active.swap(enable, Ordering::SeqCst);
+        if was_active && !enable {
+            let status = self.build_status(false);
+            let pub_handle = Arc::clone(&self.status_pub);
+            tokio::spawn(async move {
+                if let Err(err) = pub_handle.publish(&status).await {
+                    log_core_error(transport_error("bond status publish failed", err));
+                }
+            });
+        }
+    }
+
+    fn spawn(self: Arc<Self>) {
+        let agent = Arc::clone(&self);
+        tokio::spawn(async move {
+            let mut ticker = tokio::time::interval(agent.heartbeat_period);
+            loop {
+                ticker.tick().await;
+                if !agent.active.load(Ordering::Relaxed) {
+                    continue;
+                }
+                let status = agent.build_status(true);
+                if let Err(err) = agent.status_pub.publish(&status).await {
+                    log_core_error(transport_error("bond status publish failed", err));
+                }
+            }
+        });
+    }
+
+    fn build_status(&self, active: bool) -> BondStatus {
+        let header = StdHeader {
+            stamp: now_time(),
+            ..Default::default()
+        };
+        BondStatus {
+            header,
+            id: self.id.clone(),
+            instance_id: self.instance_id.clone(),
+            active,
+            heartbeat_timeout: self.heartbeat_timeout.as_secs_f32(),
+            heartbeat_period: self.heartbeat_period.as_secs_f32(),
+        }
+    }
 }
 
 impl Backend {
@@ -59,10 +137,31 @@ impl Backend {
     }
 }
 
+fn now_nanos() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|dur| dur.as_nanos() as u64)
+        .unwrap_or(0)
+}
+
+fn now_time() -> builtin_interfaces::Time {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|dur| builtin_interfaces::Time {
+            sec: dur.as_secs() as i32,
+            nanosec: dur.subsec_nanos(),
+        })
+        .unwrap_or_default()
+}
+
+fn bond_active_for_state(state: CoreState) -> bool {
+    !matches!(state, CoreState::Unconfigured | CoreState::Finalized)
+}
+
 fn update_state_from_event(
     state: &Arc<Mutex<CoreState>>,
     msg: &RosTransitionEvent,
-) -> CoreResult<()> {
+) -> CoreResult<CoreState> {
     let goal_id = msg.goal_state.id;
     let next_state = state_from_ros_id(goal_id).ok_or_else(|| {
         CoreError::warn()
@@ -74,7 +173,7 @@ fn update_state_from_event(
     })?;
     let mut guard = lock_state(state, "transition_event")?;
     *guard = next_state;
-    Ok(())
+    Ok(next_state)
 }
 
 fn transition_from_label(label: &str) -> Option<Transition> {
@@ -106,6 +205,23 @@ async fn main() -> CoreResult<()> {
     let pending_goal_state = Arc::new(Mutex::new(None));
     let event_map: Arc<Mutex<HashMap<u8, EventInfo>>> = Arc::new(Mutex::new(HashMap::new()));
 
+    let bond_heartbeat_period = Duration::from_secs_f32(1.0);
+    let bond_heartbeat_timeout = Duration::from_secs_f32(4.0);
+    let bond_topic = TOPIC_BOND.to_string();
+    let bond_pub = Arc::new(
+        ros_server
+            .advertise::<BondStatus>(&bond_topic)
+            .await
+            .map_err(|err| transport_error("advertise bond status", err))?,
+    );
+    let bond_agent = Arc::new(BondAgent::new(
+        bond_pub,
+        config.target_node.clone(),
+        bond_heartbeat_period,
+        bond_heartbeat_timeout,
+    ));
+    bond_agent.clone().spawn();
+
     let change_state_srv = frontend_service(&config.target_node, SERVICE_CHANGE_STATE);
     let get_state_srv = frontend_service(&config.target_node, SERVICE_GET_STATE);
     let get_available_states_srv =
@@ -129,6 +245,7 @@ async fn main() -> CoreResult<()> {
     let state_for_change = Arc::clone(&lifecycle_state);
     let pending_goal_for_change = Arc::clone(&pending_goal_state);
     let event_map_change = Arc::clone(&event_map);
+    let bond_for_change = Arc::clone(&bond_agent);
     let _change_handle = ros_server.advertise_service::<ChangeState, _>(
         &change_state_srv,
         move |req: ChangeStateRequest| {
@@ -178,6 +295,7 @@ async fn main() -> CoreResult<()> {
                 }
             };
             *guard = intermediate_state;
+            bond_for_change.set_active(bond_active_for_state(intermediate_state));
             drop(guard);
 
             let expected_goal_state = match goal_state_for_transition(start_state, transition) {
@@ -233,23 +351,32 @@ async fn main() -> CoreResult<()> {
             let state_for_timeout = Arc::clone(&state_for_change);
             let pending_goal_for_timeout = Arc::clone(&pending_goal_for_change);
             let event_map = Arc::clone(&event_map_change);
+            let bond_for_timeout = Arc::clone(&bond_for_change);
             tokio::spawn(async move {
                 tokio::time::sleep(change_state_timeout).await;
                 let snapshot = match event_map.lock() {
                     Ok(guard) => guard.get(&transition_id).copied(),
                     Err(_) => None,
                 };
-                let ok = snapshot.map_or(false, |ev| {
-                    if ev.stamp == last_stamp_before {
-                        return false;
+                let ok = match snapshot {
+                    Some(ev) => {
+                        if ev.stamp == last_stamp_before {
+                            false
+                        } else {
+                            match expected_goal_state_id {
+                                Some(expected) => ev.goal_state_id == expected,
+                                None => true,
+                            }
+                        }
                     }
-                    expected_goal_state_id.map_or(true, |expected| ev.goal_state_id == expected)
-                });
+                    None => false,
+                };
                 if !ok {
                     if let Ok(mut guard) = lock_state(&state_for_timeout, "change_state_timeout") {
                         if *guard == intermediate_state {
                             *guard = start_state;
                         }
+                        bond_for_timeout.set_active(bond_active_for_state(*guard));
                     }
                     if let Ok(mut guard) = pending_goal_for_timeout.lock() {
                         *guard = None;
@@ -356,6 +483,7 @@ async fn main() -> CoreResult<()> {
     let state_events = Arc::clone(&lifecycle_state);
     let event_map_updates = Arc::clone(&event_map);
     let pending_goal_updates = Arc::clone(&pending_goal_state);
+    let bond_updates = Arc::clone(&bond_agent);
     tokio::spawn(async move {
         loop {
             let msg = backend_event_sub.next().await;
@@ -368,8 +496,9 @@ async fn main() -> CoreResult<()> {
                     },
                 );
             }
-            if let Err(err) = update_state_from_event(&state_events, &msg) {
-                log_core_error(err);
+            match update_state_from_event(&state_events, &msg) {
+                Ok(next_state) => bond_updates.set_active(bond_active_for_state(next_state)),
+                Err(err) => log_core_error(err),
             }
             if let Ok(mut guard) = pending_goal_updates.lock() {
                 *guard = None;
@@ -389,6 +518,7 @@ async fn main() -> CoreResult<()> {
                 .msgf(format_args!("ctrl-c handler failed: {err}"))
                 .build()
         })?;
+    bond_agent.set_active(false);
     info!("shutdown");
     Ok(())
 }
