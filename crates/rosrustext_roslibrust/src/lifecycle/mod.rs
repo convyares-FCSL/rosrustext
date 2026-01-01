@@ -1,4 +1,4 @@
-//! rclrust_wrapper::lifecycle
+//! rosrustext_roslibrust::lifecycle
 //!
 //! Wrapper-side lifecycle API façade.
 //!

@@ -1,7 +1,7 @@
 # Lifecycle Parity – roslibrust Adapter
 
 This document tracks lifecycle parity for the **roslibrust transport adapter**
-(`rclrust_wrapper` + rosbridge).
+(`rosrustext_roslibrust` + rosbridge).
 
 Canonical reference:
 - `lifecycle_parity_spec.md` (normative)
@@ -15,10 +15,10 @@ This file answers:
 
 | Service | ROS Type | Status | Notes |
 |------|---------|--------|------|
-| `change_state` | `lifecycle_msgs/srv/ChangeState` | ✅ Implemented | Maps ROS transition IDs → core state machine |
-| `get_state` | `lifecycle_msgs/srv/GetState` | ✅ Implemented | Reports current primary or transition state |
-| `get_available_transitions` | `lifecycle_msgs/srv/GetAvailableTransitions` | ✅ Implemented | Derived from core transition table |
-| `get_available_states` | `lifecycle_msgs/srv/GetAvailableStates` | ✅ Implemented | Primary + transition states |
+| `change_state` | `lifecycle_msgs/srv/ChangeState` | ✅ Implemented | Provided via Rust proxy tool |
+| `get_state` | `lifecycle_msgs/srv/GetState` | ✅ Implemented | Provided via Rust proxy tool |
+| `get_available_transitions` | `lifecycle_msgs/srv/GetAvailableTransitions` | ✅ Implemented | Provided via Rust proxy tool |
+| `get_available_states` | `lifecycle_msgs/srv/GetAvailableStates` | ✅ Implemented | Provided via Rust proxy tool |
 | `get_transition_graph` | `lifecycle_msgs/srv/GetTransitionGraph` | ⏳ Pending | Data already exists in core |
 | `create` | internal | ❌ Omitted | Wrapper-only concern |
 | `destroy` | internal | ❌ Omitted | Wrapper-only concern |
@@ -29,7 +29,7 @@ This file answers:
 
 | Topic | ROS Type | Status | Notes |
 |------|---------|--------|------|
-| `transition_event` | `lifecycle_msgs/msg/TransitionEvent` | ⏳ Pending | Required for lifecycle managers |
+| `transition_event` | `lifecycle_msgs/msg/TransitionEvent` | ✅ Implemented | Bridged by proxy from backend events |
 
 ---
 
@@ -44,6 +44,21 @@ This file answers:
 | Shutdown from any state | ✅ | Best-effort path implemented |
 | ErrorProcessing handling | ✅ | Delegated to core |
 | Fatal error policy | ⏳ | Needs explicit definition |
+
+---
+
+## Proxy requirement
+
+roslibrust-backed nodes expose lifecycle services under a private namespace:
+
+- `/<target>/_rosrustext/change_state`
+- `/<target>/_rosrustext/get_state`
+- `/<target>/_rosrustext/get_available_states`
+- `/<target>/_rosrustext/get_available_transitions`
+- `/<target>/_rosrustext/transition_event`
+
+The Rust proxy tool (`rosrustext_lifecycle_proxy`) bridges these to standard
+ROS 2 lifecycle endpoints on the ROS graph so `ros2 lifecycle` works.
 
 ---
 
@@ -62,7 +77,6 @@ These constraints **must not** leak into core lifecycle semantics.
 
 - No executor-managed callback groups
 - No parameter lifecycle hooks (future)
-- Transition events not yet published
 - No `get_transition_graph` yet
 
 All gaps are intentional and tracked.

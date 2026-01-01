@@ -1,11 +1,11 @@
-# rclrust – TODO (ROS2 Parity Oriented)
+# rosrustext – TODO (ROS2 Parity Oriented)
 
 This list tracks what is required to reach **observable parity**
 with ROS2 lifecycle nodes (`rcl_lifecycle` + `rclcpp_lifecycle`).
 
 Guiding rule:
 - `rosrustext_core` defines lifecycle truth
-- `rclrust_wrapper` adapts that truth to ROS transports
+- `rosrustext_roslibrust` adapts that truth to ROS transports
 
 This is **not** a reimplementation of rclcpp.
 It is an explicit, testable lifecycle model that can be *controlled by*
@@ -45,9 +45,9 @@ standard ROS2 lifecycle managers.
 - [x] `ChangeState` handler
 - [x] `GetState` handler
 - [x] `GetAvailableTransitions` handler
-- [X] `GetAvailableStates` handler
+- [x] `GetAvailableStates` handler
 - [ ] `GetTransitionGraph` handler
-- [ ] Lifecycle state change publisher (`/transition_event` equivalent)
+- [x] Lifecycle state change publisher (`/transition_event` equivalent)
 
 ### Managed entities
 - [x] Activation-gated publisher
@@ -59,7 +59,8 @@ standard ROS2 lifecycle managers.
 - [x] roslibrust integration behind feature flag
 - [x] Transport adapters isolated under `transport::*`
 - [x] ChangeState service via rosbridge
-- [ ] Wire remaining lifecycle services via rosbridge
+- [x] Wire remaining lifecycle services via rosbridge (via Rust proxy tool)
+- [x] `ros2 lifecycle set/get` works over rosbridge (proxy)
 - [ ] Verify compatibility with Python lifecycle manager
 - [ ] Verify compatibility with C++ lifecycle manager
 
@@ -107,12 +108,14 @@ standard ROS2 lifecycle managers.
 - [ ] Config patterns (deterministic, testable)
 - [ ] Example lifecycle-managed node
 - [ ] Example showing publisher + timer gating
+- [x] Rust lifecycle proxy tool (rosbridge)
+- [x] Local run scripts (rosbridge/backend/proxy/lifecycle test)
 
 ---
 
 ## Naming / Packaging
 
-- [ ] Keep `rclrust_wrapper` name stable for now
+- [ ] Keep `rosrustext_roslibrust` name stable for now
 - [ ] Consider adding a top-level façade crate later
   - e.g. `fcsl_ros_rust` or similar
   - Pure re-export + documentation layer only
@@ -128,7 +131,7 @@ Lifecycle is considered **complete** when:
   - Python lifecycle manager
   - C++ lifecycle manager
 - All lifecycle services respond correctly
-- Publ
+- `transition_event` is published with valid IDs/labels
 
 ---
 

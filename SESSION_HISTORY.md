@@ -1,4 +1,4 @@
-# rclrust – Session History
+# rosrustext – Session History
 
 This file records what was actually implemented, validated, and learned.
 Entries reflect real behaviour, not intent.
@@ -9,7 +9,7 @@ Entries reflect real behaviour, not intent.
 - Established vendor-style Cargo workspace.
 - Split library into:
   - `rosrustext_core` (pure lifecycle logic)
-  - `rclrust_wrapper` (ROS-facing adaptation)
+  - `rosrustext_roslibrust` (ROS-facing adaptation)
 - Explicitly rejected `rclrs`; selected `roslibrust + rosbridge`.
 - Defined initial error and result models.
 - Enforced “no ROS in core” rule from day one.
@@ -107,6 +107,22 @@ Shutdown semantics now match ROS lifecycle expectations.
 
 Outcome:
 End-to-end Rust lifecycle node works under a real ROS 2 Jazzy environment.
+
+---
+
+## Session 8 – Rust lifecycle proxy + scripts
+- Implemented Rust lifecycle proxy tool over roslibrust (no Python).
+- Exposed ROS 2 lifecycle services and `/transition_event` via proxy.
+- Added private backend namespace for rosrustext lifecycle endpoints.
+- Added local scripts:
+  - rosbridge launcher
+  - backend + proxy runners
+  - lifecycle CLI test
+  - single-terminal `run_all.sh` orchestration
+- Improved cleanup to avoid stale rosbridge processes.
+
+Outcome:
+`ros2 lifecycle set/get` works end-to-end over rosbridge with Rust-only tooling.
 
 ---
 

@@ -1,4 +1,4 @@
-//! rclrust_wrapper
+//! rosrustext_roslibrust
 //!
 //! ROS-facing adapter layer built on top of roslibrust.
 //! Provides lifecycle + action surfaces compatible with ROS 2 tooling,

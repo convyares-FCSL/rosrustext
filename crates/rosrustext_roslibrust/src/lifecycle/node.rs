@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use rosrustext_core::error::{CoreError, Result};
+use rosrustext_core::error::{CoreError, Domain, ErrorKind, Result};
 use rosrustext_core::lifecycle::{ActivationGate, LifecycleCallbacks, State};
 
 /// Internal API (wrapper facing).
@@ -10,6 +10,7 @@ use super::dtos::{change_state, get_available_states, get_available_transitions,
 use rosrustext_core::lifecycle::{ available_transitions, drive, shutdown_ros_id_for_state, transition_from_ros_id } ;
 
 use crate::lifecycle::TransitionEvent;
+
 
 /// Wrapper-side lifecycle node adapter.
 ///
@@ -44,12 +45,13 @@ impl LifecycleNode {
     pub fn new(name: impl Into<String>, callbacks: Box<dyn LifecycleCallbacks + Send>) -> Result<Self> {
         let name = name.into();
         if name.is_empty() {
-            return Err(CoreError::new(
-                rosrustext_core::error::Domain::Lifecycle,
-                rosrustext_core::error::ErrorKind::InvalidArgument,
-                rosrustext_core::error::Severity::Error,
-                "node name must not be empty",
-            ));
+            return Err(
+                CoreError::error()
+                    .domain(Domain::Lifecycle)
+                    .kind(ErrorKind::InvalidArgument)
+                    .msg("node name must not be empty")
+                    .build(),
+            );
         }
 
         let (transition_events, _rx) = tokio::sync::broadcast::channel(32);
@@ -94,12 +96,11 @@ impl LifecycleNode {
     /// Returns (intermediate_state, final_state) as per core drive().
     pub(crate) fn request_transition_ros(&mut self, ros_transition_id: u8) -> Result<(State, State)> {
         let transition = transition_from_ros_id(ros_transition_id).ok_or_else(|| {
-            CoreError::new(
-                rosrustext_core::error::Domain::Lifecycle,
-                rosrustext_core::error::ErrorKind::InvalidArgument,
-                rosrustext_core::error::Severity::Warn,
-                "unsupported ROS lifecycle transition id",
-            )
+            CoreError::warn()
+                .domain(Domain::Lifecycle)
+                .kind(ErrorKind::InvalidArgument)
+                .msg("unsupported ROS lifecycle transition id")
+                .build()
         })?;
 
         let current = self.state;

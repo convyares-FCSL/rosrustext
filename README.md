@@ -1,6 +1,6 @@
-# rclrust
+# rosrustext
 
-`rclrust` is a small Rust library that provides **ROS 2–compatible lifecycle
+`rosrustext` is a small Rust library that provides **ROS 2–compatible lifecycle
 semantics** without depending on `rclrs`.
 
 The goal is **observable behavioral parity with ROS 2 lifecycle nodes**
@@ -56,7 +56,7 @@ This crate defines *what lifecycle means*.
 
 ---
 
-### `rclrust_wrapper`
+### `rosrustext_roslibrust`
 **ROS-facing adaptation layer**
 
 Contains:
@@ -118,17 +118,56 @@ The intent is **boring correctness**, not convenience magic.
 ## Current transport support
 
 - `roslibrust` via rosbridge (WebSocket)
-- Lifecycle services exposed over rosbridge
+- Lifecycle services exposed over rosbridge via a Rust proxy tool
 - Publisher and timer gating enforced in Rust
 
 Additional transports can be added without touching `rosrustext_core`.
 
 ---
 
+## Lifecycle proxy tool (rosbridge)
+
+Lifecycle-aware roslibrust nodes expose **backend** endpoints under a private namespace:
+
+- `/<target>/_rosrustext/change_state`
+- `/<target>/_rosrustext/get_state`
+- `/<target>/_rosrustext/get_available_states`
+- `/<target>/_rosrustext/get_available_transitions`
+- `/<target>/_rosrustext/transition_event`
+
+The Rust proxy tool bridges those to standard ROS 2 lifecycle endpoints so
+`ros2 lifecycle` works without glue code:
+
+- `/<target>/change_state`
+- `/<target>/get_state`
+- `/<target>/get_available_states`
+- `/<target>/get_available_transitions`
+- `/<target>/transition_event`
+
+Tool crate:
+`crates/rosrustext_roslibrust/tools/rosrustext_lifecycle_proxy`
+
+---
+
+## Scripts (local validation)
+
+From the repo root:
+
+- `./scripts/run_rosbridge.sh`
+- `./scripts/run_backend.sh`
+- `./scripts/run_proxy.sh`
+- `./scripts/run_lifecycle_test.sh`
+- `./scripts/run_all.sh` (single-terminal end-to-end run)
+
+`run_all.sh` starts rosbridge, the backend app, the proxy, runs lifecycle
+commands, then shuts everything down cleanly (SIGINT).
+
+---
+
 ## Status
 
 - Core lifecycle: **implemented and fully tested**
-- Wrapper lifecycle services: **partially complete**
+- Wrapper lifecycle services: **implemented (via proxy)**
 - Graceful shutdown semantics: **implemented**
 - Actions: **planned**
 - Parameters: **planned**

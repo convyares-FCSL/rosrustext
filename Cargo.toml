@@ -17,6 +17,7 @@ tokio = "1.48"
 members = [
     "crates/rosrustext_core",
     "crates/rosrustext_roslibrust",
+    "crates/rosrustext_roslibrust/tools/rosrustext_lifecycle_proxy",
     # "crates/rosrustext_ros2_rust", # later
 ]
 resolver = "2"
