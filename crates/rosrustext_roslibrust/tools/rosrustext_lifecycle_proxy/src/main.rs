@@ -506,10 +506,8 @@ async fn main() -> CoreResult<()> {
             move |req: GetTransitionGraphRequest| {
                 info!("get_transition_graph request");
                 let _ = req;
-                let graph = rosrustext_core::lifecycle::transition_graph().map_err(|err| {
-                    log_core_error(err.clone());
-                    err
-                })?;
+                let graph = rosrustext_core::lifecycle::transition_graph()
+                    .inspect_err(|err| log_core_error(err.clone()))?;
                 let states: Vec<_> = graph.states.into_iter().map(ros_state).collect();
                 let transitions = graph
                     .transitions

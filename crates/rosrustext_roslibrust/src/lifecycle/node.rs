@@ -45,6 +45,7 @@ pub struct LifecycleNode {
     transition_events: tokio::sync::broadcast::Sender<TransitionEvent>,
 }
 
+#[cfg(any(test, feature = "roslibrust"))]
 pub(crate) struct TransitionWork {
     pub(crate) start_state: State,
     pub(crate) intermediate_state: State,
