@@ -114,6 +114,8 @@ standard ROS2 lifecycle managers.
 - [x] Rust lifecycle proxy tool (rosbridge)
 - [x] Local run scripts (rosbridge/backend/proxy/lifecycle test)
 - [x] Nav2 bond validation script
+- [x] Rust integration tests for lifecycle contracts (core + proxy + graph)
+- [x] System test aggregator (`scripts/test/run_all_tests.sh`)
 
 ---
 

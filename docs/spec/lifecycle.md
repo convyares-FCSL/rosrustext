@@ -98,6 +98,13 @@ heartbeat on `/bond` using `bond/msg/Status`, with `id` matching the managed
 node name and a unique `instance_id`. Heartbeats should run while the node is
 active and stop on deactivation, shutdown, or finalization.
 
+## Test Layers (informative)
+
+- Core unit tests (Rust): `cargo test -p rosrustext_core`
+- Adapter integration tests (Rust-only): `cargo test -p rosrustext_roslibrust` and
+  `cargo test -p rosrustext_lifecycle_proxy`
+- System tests (ROS CLI + managers): `scripts/test/run_all_tests.sh`
+
 ## Definition of Done
 
 Lifecycle parity is complete when:

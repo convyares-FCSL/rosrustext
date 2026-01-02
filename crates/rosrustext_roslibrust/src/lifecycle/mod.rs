@@ -4,9 +4,9 @@
 //!
 //! Exposes application-facing lifecycle primitives while keeping core semantics in rosrustext_core.
 
+pub use rosrustext_core::lifecycle::{transition_graph, TransitionEdge, TransitionGraph};
 /// Re-export core lifecycle types
 pub use rosrustext_core::lifecycle::{ActivationGate, CallbackResult, LifecycleCallbacks};
-pub use rosrustext_core::lifecycle::{transition_graph, TransitionEdge, TransitionGraph};
 
 // ROS lifecycle IDs/mapping (wrapper side).
 mod ros;
@@ -17,9 +17,9 @@ pub use ros::{
 
 // Lifecycle publisher module.
 mod managed_publisher;
-pub use managed_publisher::{ManagedPublisher, PublishLike};
 #[cfg(feature = "roslibrust")]
 pub use crate::transport::roslibrust::publisher::RosbridgePublisher;
+pub use managed_publisher::{ManagedPublisher, PublishLike};
 
 // Lifecycle timer module.
 mod managed_timer;

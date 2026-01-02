@@ -134,10 +134,7 @@ impl LifecycleService {
             return (true, "no shutdown transition for current state".to_string());
         };
         match node.request_transition_ros(transition_id) {
-            Ok((_mid, final_state)) => (
-                true,
-                format!("transition ok -> {final_state:?}"),
-            ),
+            Ok((_mid, final_state)) => (true, format!("transition ok -> {final_state:?}")),
             Err(err) => (false, format!("transition failed: {err}")),
         }
     }

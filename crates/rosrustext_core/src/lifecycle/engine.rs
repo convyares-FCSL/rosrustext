@@ -396,7 +396,11 @@ mod tests {
     #[test]
     fn failure_paths_return_to_previous_state() {
         let cases = [
-            (State::Unconfigured, Transition::Configure, State::Unconfigured),
+            (
+                State::Unconfigured,
+                Transition::Configure,
+                State::Unconfigured,
+            ),
             (State::Inactive, Transition::Activate, State::Inactive),
             (State::Active, Transition::Deactivate, State::Active),
             (State::Inactive, Transition::Cleanup, State::Inactive),
@@ -404,7 +408,12 @@ mod tests {
         ];
 
         for (start, transition, expected) in cases {
-            let end = drive_once(start, transition, CallbackResult::Failure, CallbackResult::Success);
+            let end = drive_once(
+                start,
+                transition,
+                CallbackResult::Failure,
+                CallbackResult::Success,
+            );
             assert_eq!(end, expected);
         }
     }
@@ -412,7 +421,11 @@ mod tests {
     #[test]
     fn error_paths_follow_error_processing_rules() {
         let cases = [
-            (State::Unconfigured, Transition::Configure, State::Unconfigured),
+            (
+                State::Unconfigured,
+                Transition::Configure,
+                State::Unconfigured,
+            ),
             (State::Inactive, Transition::Activate, State::Unconfigured),
             (State::Active, Transition::Deactivate, State::Unconfigured),
             (State::Inactive, Transition::Cleanup, State::Unconfigured),
@@ -420,7 +433,12 @@ mod tests {
         ];
 
         for (start, transition, expected) in cases {
-            let end = drive_once(start, transition, CallbackResult::Error, CallbackResult::Success);
+            let end = drive_once(
+                start,
+                transition,
+                CallbackResult::Error,
+                CallbackResult::Success,
+            );
             assert_eq!(end, expected);
         }
     }

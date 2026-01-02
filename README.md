@@ -58,7 +58,7 @@ A user should be able to:
 
   * `ros2 lifecycle`
   * Python lifecycle managers
-  * Nav2
+  * C++ lifecycle managers (Nav2)
   * Standard launch files
 * And have it behave **indistinguishably** from a C++ or Python node
 
@@ -165,9 +165,9 @@ Current lifecycle support includes:
 
   * ROS CLI
   * Python lifecycle manager
-  * Nav2 lifecycle manager
+  * Nav2 lifecycle manager (C++)
 
-Lifecycle is **done**, but the project is **not lifecycle-only**.
+Lifecycle is for rcllibrust is **DONE**, for rc2rust is **WIP**.
 
 ---
 
@@ -193,7 +193,7 @@ they test **real ROS behavior**, not mocked APIs.
 
 ## What this project is *not*
 
-* ❌ A replacement for `rclcpp` or `rclpy`
+* ❌ A replacement for `rclcpp`, `rclpy`, `roslibrust`or , `ros2_rust`.
 * ❌ A single Rust ROS client library
 * ❌ A macro-driven abstraction layer
 * ❌ A green-field ROS reimplementation

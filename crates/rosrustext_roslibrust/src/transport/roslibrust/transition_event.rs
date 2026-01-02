@@ -20,11 +20,13 @@ where
     // Grab the receiver once, then drop the lock.
     let mut rx = {
         let guard = node.lock().map_err(|_| {
- CoreError::error()
+            CoreError::error()
                 .domain(Domain::Lifecycle)
                 .kind(ErrorKind::InvalidState) // or ErrorKind::Other if you prefer
                 .msg("LifecycleNode mutex poisoned")
-                .payload(Payload::Context {key: "where", value: "run_transition_event_publisher".into(),
+                .payload(Payload::Context {
+                    key: "where",
+                    value: "run_transition_event_publisher".into(),
                 })
                 .build()
         })?;
@@ -40,7 +42,7 @@ where
         })?;
 
         let msg = M::from_event(&ev);
-        
+
         publisher.publish(&msg).await.map_err(|e| {
             CoreError::warn()
                 .domain(Domain::Transport)

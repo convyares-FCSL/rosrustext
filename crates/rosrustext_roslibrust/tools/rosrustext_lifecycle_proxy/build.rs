@@ -4,7 +4,12 @@ use std::path::PathBuf;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rerun-if-env-changed=AMENT_PREFIX_PATH");
 
-    let packages = ["lifecycle_msgs", "bond", "std_msgs", "rosrustext_interfaces"];
+    let packages = [
+        "lifecycle_msgs",
+        "bond",
+        "std_msgs",
+        "rosrustext_interfaces",
+    ];
     let mut search_paths = Vec::new();
 
     let local_override = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("interfaces");
@@ -23,14 +28,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             search_paths.push(candidate.clone());
         }
         let candidate_bond = candidate.join("bond");
-        if candidate_bond.join("package.xml").is_file() && !search_paths.contains(&candidate_bond)
-        {
+        if candidate_bond.join("package.xml").is_file() && !search_paths.contains(&candidate_bond) {
             search_paths.push(candidate_bond);
         }
     } else {
         let repo_interfaces = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("interfaces");
-        if repo_interfaces.join("package.xml").is_file()
-            && !search_paths.contains(&repo_interfaces)
+        if repo_interfaces.join("package.xml").is_file() && !search_paths.contains(&repo_interfaces)
         {
             search_paths.push(repo_interfaces.clone());
         }
@@ -68,8 +71,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for pkg in packages {
         let mut present = false;
         for path in &search_paths {
-            if path.join("package.xml").is_file() || path.join(pkg).join("package.xml").is_file()
-            {
+            if path.join("package.xml").is_file() || path.join(pkg).join("package.xml").is_file() {
                 present = true;
                 break;
             }

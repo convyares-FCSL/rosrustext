@@ -61,7 +61,7 @@ pub(crate) mod get_available_transitions {
 
 /// Mirrors ROS2 lifecycle GetAvailableStates, but remains transport-agnostic.
 pub mod get_available_states {
-    #[allow(dead_code)]    
+    #[allow(dead_code)]
     #[derive(Debug, Clone)]
     pub struct Request;
 
@@ -72,7 +72,6 @@ pub mod get_available_states {
         pub label: String,
     }
 
-        
     #[allow(dead_code)]
     #[derive(Debug, Clone)]
     pub struct Response {

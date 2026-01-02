@@ -114,6 +114,7 @@ Verification:
 - `scripts/test/roslibrust/lifecycle/test_nav2_bond.sh`
 - `scripts/test/roslibrust/lifecycle/test_python_lifecycle_manager.sh`
 - `scripts/test/roslibrust/lifecycle/test_lifecycle_stress.sh`
+- `scripts/test/run_all_tests.sh`
 - `ros2 run nav2_lifecycle_manager lifecycle_manager --ros-args -p node_names:="[hyfleet_ring_roslibrust]" -p autostart:=true`
 
 ---
@@ -154,6 +155,22 @@ These constraints **must not** leak into core lifecycle semantics.
 - No parameter lifecycle hooks (future)
 
 All gaps are intentional and tracked.
+
+---
+
+## Test Layers
+
+- Core unit tests (Rust): `cargo test -p rosrustext_core`
+- Adapter integration tests (Rust-only): `cargo test -p rosrustext_roslibrust` and
+  `cargo test -p rosrustext_lifecycle_proxy`
+- System tests (ROS CLI + managers): `scripts/test/run_all_tests.sh`
+
+---
+
+## Status
+
+Lifecycle parity for `rosrustext_roslibrust` is **complete** and ready to mirror
+for the `rosrustext_ros2_rust` adapter.
 
 ---
 

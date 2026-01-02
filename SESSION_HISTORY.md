@@ -195,6 +195,22 @@ mixing concerns.
 
 ---
 
+## Session 13 – Integration tests + proxy refactor
+- Split proxy logic into reusable library modules:
+  - bond agent
+  - config parsing
+  - proxy lifecycle state tracking
+- Added Rust integration tests for lifecycle contracts (core + proxy) and
+  transition graph mapping.
+- Added proxy config/bond semantics tests (no ROS tooling required).
+- Added `scripts/test/run_all_tests.sh` aggregator and documented test layers.
+
+Outcome:
+Lifecycle parity now has Rust-level contract coverage and a single entry point
+for full system validation.
+
+---
+
 ## Guiding principle
 
 **Model lifecycle truth once, test it in isolation,

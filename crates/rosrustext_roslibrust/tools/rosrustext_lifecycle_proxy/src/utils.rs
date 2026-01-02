@@ -1,4 +1,3 @@
-use std::env;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use rosrustext_core::error::{CoreError, Domain, ErrorKind, Payload, Result as CoreResult};
@@ -8,8 +7,6 @@ use tracing::warn;
 
 use crate::lifecycle_msgs;
 
-pub const DEFAULT_TARGET_NODE: &str = "hyfleet_ring_roslibrust";
-pub const DEFAULT_BRIDGE_URL: &str = "ws://localhost:9090";
 pub const BACKEND_NAMESPACE: &str = "_rosrustext";
 pub const SERVICE_CHANGE_STATE: &str = "change_state";
 pub const SERVICE_GET_STATE: &str = "get_state";
@@ -18,88 +15,6 @@ pub const SERVICE_GET_AVAILABLE_TRANSITIONS: &str = "get_available_transitions";
 pub const SERVICE_GET_TRANSITION_GRAPH: &str = "get_transition_graph";
 pub const TOPIC_TRANSITION_EVENT: &str = "transition_event";
 pub const TOPIC_BOND: &str = "/bond";
-
-pub struct Config {
-    pub node_name: String,
-    pub target_node: String,
-    pub bridge_url: String,
-    pub bond_enabled: bool,
-}
-
-impl Config {
-    pub fn from_args() -> Self {
-        let mut node_name: Option<String> = None;
-        let mut target_node =
-            env::var("ROSRUSTEXT_TARGET_NODE").unwrap_or_else(|_| DEFAULT_TARGET_NODE.to_string());
-        let mut bridge_url =
-            env::var("ROSRUSTEXT_BRIDGE_URL").unwrap_or_else(|_| DEFAULT_BRIDGE_URL.to_string());
-        let mut bond_enabled = env::var("ROSRUSTEXT_BOND")
-            .ok()
-            .and_then(parse_bool)
-            .unwrap_or(true);
-
-        let mut args = env::args().skip(1).peekable();
-        while let Some(arg) = args.next() {
-            match arg.as_str() {
-                "-h" | "--help" => {
-                    print_usage();
-                    std::process::exit(0);
-                }
-                "--node-name" => {
-                    if let Some(value) = args.next() {
-                        node_name = Some(value);
-                    }
-                }
-                "--target-node" => {
-                    if let Some(value) = args.next() {
-                        target_node = value;
-                    }
-                }
-                "--bridge-url" => {
-                    if let Some(value) = args.next() {
-                        bridge_url = value;
-                    }
-                }
-                "--no-bond" => {
-                    bond_enabled = false;
-                }
-                _ if arg.starts_with("--node-name=") => {
-                    node_name = Some(arg["--node-name=".len()..].to_string());
-                }
-                _ if arg.starts_with("--target-node=") => {
-                    target_node = arg["--target-node=".len()..].to_string();
-                }
-                _ if arg.starts_with("--bridge-url=") => {
-                    bridge_url = arg["--bridge-url=".len()..].to_string();
-                }
-                _ => {}
-            }
-        }
-
-        let node_name = node_name.unwrap_or_else(|| target_node.clone());
-
-        Self {
-            node_name,
-            target_node,
-            bridge_url,
-            bond_enabled,
-        }
-    }
-}
-
-fn print_usage() {
-    println!(
-        "rosrustext_lifecycle_proxy --target-node <name> [--node-name <name>] [--bridge-url ws://host:port] [--no-bond]"
-    );
-}
-
-fn parse_bool(value: String) -> Option<bool> {
-    match value.trim().to_ascii_lowercase().as_str() {
-        "1" | "true" | "yes" | "on" => Some(true),
-        "0" | "false" | "no" | "off" => Some(false),
-        _ => None,
-    }
-}
 
 pub fn frontend_service(target: &str, service: &str) -> String {
     format!("/{target}/{service}")
@@ -203,11 +118,8 @@ mod tests {
 
     #[test]
     fn transition_description_contains_ros_ids() {
-        let desc = ros_transition_description(
-            CoreState::Unconfigured,
-            Transition::Configure,
-        )
-        .unwrap();
+        let desc =
+            ros_transition_description(CoreState::Unconfigured, Transition::Configure).unwrap();
 
         assert_eq!(desc.transition.id, ros_ids::TRANSITION_CONFIGURE);
         assert_eq!(desc.start_state.label, "Unconfigured");
