@@ -166,6 +166,35 @@ integration, and Nav2 bond compatibility with reproducible scripts.
 
 ---
 
+## Session 11 – Stress test hardening + config/doc cleanup
+- Added lifecycle stress test script with transition-event capture, ordering checks,
+  and tunable delays/timeouts.
+- Hardened Python lifecycle manager test to tolerate rosbridge response delays.
+- Increased Nav2 lifecycle manager wait timeout for deterministic runs.
+- Documented proxy config precedence, shutdown semantics, and publish suppression policy.
+- Added a minimal lifecycle-managed node example doc (publisher + timer gating).
+
+Outcome:
+Lifecycle stress validation is reproducible; documentation and TODOs reflect
+final parity status and configuration behavior.
+
+---
+
+## Session 12 – Script/doc layout by adapter + feature
+- Moved roslibrust lifecycle scripts under adapter/feature folders:
+  - `scripts/run/roslibrust/lifecycle/*`
+  - `scripts/test/roslibrust/lifecycle/*`
+- Added placeholders for future roslibrust action/parameter parity tests.
+- Moved lifecycle docs into adapter/spec/example folders with simplified names.
+- Added placeholders for future ros2rust and roslibrust action/parameter docs.
+- Updated docs and README references to the new locations.
+
+Outcome:
+Scripts are ready to scale to multiple adapters and parity features without
+mixing concerns.
+
+---
+
 ## Guiding principle
 
 **Model lifecycle truth once, test it in isolation,

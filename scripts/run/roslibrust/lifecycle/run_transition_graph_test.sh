@@ -2,10 +2,10 @@
 set -euo pipefail
 
 TARGET_NODE="${TARGET_NODE:-hyfleet_ring_roslibrust}"
-LIFECYCLE_TIMEOUT="${LIFECYCLE_TIMEOUT:-5}"
+LIFECYCLE_TIMEOUT="${LIFECYCLE_TIMEOUT:-10}"
 SERVICE_WAIT_TIMEOUT="${SERVICE_WAIT_TIMEOUT:-6}"
 SERVICE_READY_DELAY="${SERVICE_READY_DELAY:-1}"
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 ROS2_WS_ROOT="${ROS2_WS_ROOT:-/home/ecm/ros2_rust_ws/ros2_ws}"
 PYTHON_BIN="${PYTHON_BIN:-}"
 

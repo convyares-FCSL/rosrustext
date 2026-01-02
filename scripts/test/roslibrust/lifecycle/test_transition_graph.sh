@@ -1,27 +1,26 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 TARGET_NODE="${TARGET_NODE:-hyfleet_ring_roslibrust}"
 BRIDGE_URL="${BRIDGE_URL:-ws://localhost:9090}"
 BRIDGE_PORT="${BRIDGE_PORT:-}"
 LOG_DIR="${LOG_DIR:-$ROOT_DIR/logs/run_all}"
+ROSBRIDGE_LOG_TAIL_LINES="${ROSBRIDGE_LOG_TAIL_LINES:-400}"
 STARTUP_DELAY="${STARTUP_DELAY:-1}"
 STARTUP_TIMEOUT="${STARTUP_TIMEOUT:-30}"
-NAV2_WAIT_TIMEOUT="${NAV2_WAIT_TIMEOUT:-20}"
+TOPIC_WAIT_TIMEOUT="${TOPIC_WAIT_TIMEOUT:-6}"
 NON_BRIDGE_GRACE_SECONDS="${NON_BRIDGE_GRACE_SECONDS:-2}"
 ROSBRIDGE_GRACE_SECONDS="${ROSBRIDGE_GRACE_SECONDS:-4}"
 SKIP_PROCESS_CHECK="${SKIP_PROCESS_CHECK:-0}"
 AUTO_KILL_ROSBRIDGE="${AUTO_KILL_ROSBRIDGE:-1}"
 AUTO_KILL_BACKEND="${AUTO_KILL_BACKEND:-1}"
 ROSBRIDGE_NODE_NAME="${ROSBRIDGE_NODE_NAME:-$TARGET_NODE}"
-ROS2_WS_ROOT="${ROS2_WS_ROOT:-/home/ecm/ros2_rust_ws/ros2_ws}"
 
 mkdir -p "$LOG_DIR"
 : >"$LOG_DIR/rosbridge.log"
 : >"$LOG_DIR/backend.log"
 : >"$LOG_DIR/proxy.log"
-: >"$LOG_DIR/nav2_manager.log"
 
 NAMES=()
 PIDS=()
@@ -96,10 +95,40 @@ cleanup() {
 
   wait_for_pids "$ROSBRIDGE_GRACE_SECONDS" "${bridge_pids[@]}" || true
 
+  for (( idx=${#PGIDS[@]}-1; idx>=0; idx-- )); do
+    name="${NAMES[idx]}"
+    pgid="${PGIDS[idx]}"
+    if [[ "$name" != "rosbridge" ]] && kill -0 -- "-$pgid" 2>/dev/null; then
+      kill -- "-$pgid" 2>/dev/null || true
+    fi
+  done
+  for (( idx=${#PIDS[@]}-1; idx>=0; idx-- )); do
+    name="${NAMES[idx]}"
+    pid="${PIDS[idx]}"
+    if [[ "$name" != "rosbridge" ]] && kill -0 "$pid" 2>/dev/null; then
+      kill "$pid" 2>/dev/null || true
+      pkill -P "$pid" 2>/dev/null || true
+    fi
+  done
+
+  local rosbridge_alive=0
+  local pid
+  for pid in "${bridge_pids[@]}"; do
+    if kill -0 "$pid" 2>/dev/null; then
+      rosbridge_alive=1
+      break
+    fi
+  done
+
   if [[ "$AUTO_KILL_ROSBRIDGE" == "1" ]]; then
-    if [[ -n "${BRIDGE_PORT:-}" ]] && port_in_use "$BRIDGE_PORT"; then
+    if [[ "$rosbridge_alive" == "1" ]] || ([[ -n "$BRIDGE_PORT" ]] && port_in_use "$BRIDGE_PORT"); then
       BRIDGE_URL="$BRIDGE_URL" TIMEOUT=2 FORCE=1 "$ROOT_DIR/scripts/kill/kill_rosbridge.sh" >/dev/null 2>&1 || true
     fi
+  fi
+
+  if [[ -f "$LOG_DIR/rosbridge.log" ]]; then
+    tail -n "$ROSBRIDGE_LOG_TAIL_LINES" "$LOG_DIR/rosbridge.log" >"$LOG_DIR/.rosbridge.log.tmp" \
+      && mv "$LOG_DIR/.rosbridge.log.tmp" "$LOG_DIR/rosbridge.log"
   fi
 }
 trap cleanup EXIT INT TERM
@@ -158,39 +187,6 @@ wait_for_port() {
   done
 }
 
-wait_for_service() {
-  local service="$1"
-  local timeout_s="$2"
-  local start
-  start="$(date +%s)"
-  while true; do
-    if ros2 service list 2>/dev/null | rg -q "^${service}$"; then
-      return 0
-    fi
-    if (( $(date +%s) - start >= timeout_s )); then
-      return 1
-    fi
-    sleep 0.2
-  done
-}
-
-wait_for_log() {
-  local file="$1"
-  local pattern="$2"
-  local timeout_s="$3"
-  local start
-  start="$(date +%s)"
-  while true; do
-    if [[ -f "$file" ]] && grep -q "$pattern" "$file"; then
-      return 0
-    fi
-    if (( $(date +%s) - start >= timeout_s )); then
-      return 1
-    fi
-    sleep 0.2
-  done
-}
-
 log() {
   echo "[$(date +%H:%M:%S)] $*"
 }
@@ -231,7 +227,7 @@ fi
 
 log "starting rosbridge (node name: $ROSBRIDGE_NODE_NAME)"
 ROSBRIDGE_NODE_NAME="$ROSBRIDGE_NODE_NAME" TARGET_NODE="$TARGET_NODE" BRIDGE_URL="$BRIDGE_URL" \
-  start_bg rosbridge "$ROOT_DIR/scripts/run/run_rosbridge.sh"
+  start_bg rosbridge "$ROOT_DIR/scripts/run/roslibrust/lifecycle/run_rosbridge.sh"
 
 if ! wait_for_port "$BRIDGE_PORT" "$STARTUP_TIMEOUT"; then
   echo "rosbridge did not bind to port ${BRIDGE_PORT} within ${STARTUP_TIMEOUT}s (see $LOG_DIR/rosbridge.log)" >&2
@@ -241,43 +237,16 @@ fi
 sleep "$STARTUP_DELAY"
 
 log "starting backend"
-TARGET_NODE="$TARGET_NODE" BRIDGE_URL="$BRIDGE_URL" start_bg backend "$ROOT_DIR/scripts/run/run_backend.sh"
+TARGET_NODE="$TARGET_NODE" BRIDGE_URL="$BRIDGE_URL" start_bg backend "$ROOT_DIR/scripts/run/roslibrust/lifecycle/run_backend.sh"
 
 sleep "$STARTUP_DELAY"
-
-if ! wait_for_log "$LOG_DIR/backend.log" "Running \`target/debug/hyfleet_ring_roslibrust\`" "$STARTUP_TIMEOUT"; then
-  echo "backend did not start within ${STARTUP_TIMEOUT}s (see $LOG_DIR/backend.log)" >&2
-  exit 1
-fi
 
 log "starting proxy"
-TARGET_NODE="$TARGET_NODE" BRIDGE_URL="$BRIDGE_URL" start_bg proxy "$ROOT_DIR/scripts/run/run_proxy.sh"
+TARGET_NODE="$TARGET_NODE" BRIDGE_URL="$BRIDGE_URL" start_bg proxy "$ROOT_DIR/scripts/run/roslibrust/lifecycle/run_proxy.sh"
 
 sleep "$STARTUP_DELAY"
 
-set +u
-source /opt/ros/jazzy/setup.bash
-if [[ -f "$ROS2_WS_ROOT/install/setup.bash" ]]; then
-  source "$ROS2_WS_ROOT/install/setup.bash"
-fi
-set -u
+log "running transition graph test"
+TARGET_NODE="$TARGET_NODE" "$ROOT_DIR/scripts/run/roslibrust/lifecycle/run_transition_graph_test.sh"
 
-if ! wait_for_service "/${TARGET_NODE}/change_state" "$STARTUP_TIMEOUT"; then
-  echo "service /${TARGET_NODE}/change_state not visible after ${STARTUP_TIMEOUT}s (see $LOG_DIR/proxy.log)" >&2
-  exit 1
-fi
-
-log "starting nav2 lifecycle manager"
-start_bg nav2_manager bash -lc "source /opt/ros/jazzy/setup.bash; ros2 run nav2_lifecycle_manager lifecycle_manager --ros-args -p node_names:=[${TARGET_NODE}] -p autostart:=true"
-
-if ! wait_for_log "$LOG_DIR/nav2_manager.log" "Managed nodes are active" "$NAV2_WAIT_TIMEOUT"; then
-  echo "nav2 lifecycle manager did not reach active within ${NAV2_WAIT_TIMEOUT}s (see $LOG_DIR/nav2_manager.log)" >&2
-  exit 1
-fi
-
-log "nav2 lifecycle manager reports active"
-if rg -i -q "failed to transition|failed to change state|transitioning.*failed" "$LOG_DIR/nav2_manager.log"; then
-  echo "nav2 lifecycle manager log shows transition failures (see $LOG_DIR/nav2_manager.log)" >&2
-  exit 1
-fi
 log "done (logs: $LOG_DIR)"

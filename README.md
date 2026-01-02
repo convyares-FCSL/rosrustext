@@ -1,235 +1,224 @@
 # rosrustext
 
-`rosrustext` is a small Rust library that provides **ROS 2–compatible lifecycle
-semantics** without depending on `rclrs`.
+**First-class Rust feature parity for ROS 2**
 
-The goal is **observable behavioral parity with ROS 2 lifecycle nodes**
-(`rcl_lifecycle` / `rclcpp_lifecycle`), while remaining:
+`rosrustext` is a Rust project whose goal is to enable **full, first-class Rust participation in ROS 2 systems**, on equal footing with C++ and Python.
 
-- explicit
-- testable without ROS
-- transport-agnostic at the core
-- suitable for safety-critical systems
+The long-term objective is:
 
-This is **not** a ROS client library.  
-It is a lifecycle model that can be *controlled by* ROS.
+> **A ROS 2 system where Rust, C++, and Python nodes are interchangeable**,
+> work with the same tools, follow the same semantics,
+> and can be composed freely in production systems.
+
+Lifecycle support is the **first completed feature**, not the end goal.
 
 ---
 
-## Design goals
+## Why this exists
 
-- Match ROS 2 lifecycle behavior closely enough to be driven by:
-  - Python lifecycle managers
-  - C++ lifecycle managers
-  - Future Rust tooling
-- Keep lifecycle logic **pure and deterministic**
-- Separate **semantics** from **transport and policy**
-- Prefer explicit state machines and enums over hidden callbacks
-- Avoid macros, implicit globals, or background executors
-- Be easy to vendor into another repository and build as-is
+ROS 2 already has mature client libraries for:
+
+* C++ (`rclcpp`)
+* Python (`rclpy`)
+
+Rust support exists, but is fragmented across:
+
+* rosbridge-based solutions
+* native RCL bindings
+* incomplete or uneven feature coverage
+
+This creates a gap:
+
+* Rust nodes often *compile* and *publish messages*,
+  but **fail under real ROS 2 tooling**:
+
+  * lifecycle managers
+  * Nav2
+  * orchestration tools
+  * production launch patterns
+
+`rosrustext` exists to close that gap by providing:
+
+* **Shared semantic truth in Rust**
+* **Multiple transport adapters**
+* **Observable parity with ROS 2 expectations**
 
 ---
 
-## Architecture
+## Project vision
 
-The crate is split deliberately along semantic boundaries.
+### What success looks like
+
+A user should be able to:
+
+* Write a Rust node
+* Choose a Rust ROS adapter (`roslibrust`, `ros2_rust`, etc.)
+* Drop that node into an existing ROS 2 system
+* Use:
+
+  * `ros2 lifecycle`
+  * Python lifecycle managers
+  * Nav2
+  * Standard launch files
+* And have it behave **indistinguishably** from a C++ or Python node
+
+No custom glue.
+No disabling safety checks.
+No “Rust special cases.”
+
+---
+
+## Design principles
+
+* **Parity before convenience**
+  Behavior matters more than API ergonomics.
+* **One semantic core**
+  ROS meaning is defined once, not per transport.
+* **Multiple adapters, same truth**
+  Different Rust ROS stacks share the same semantics.
+* **Transport isolation**
+  rosbridge vs native RCL differences must not leak upward.
+* **Deterministic and explicit**
+  State machines, not callbacks and side effects.
+* **Industrial-grade observability**
+  Failures must be visible, diagnosable, and predictable.
+
+---
+
+## Architecture overview
+
+`rosrustext` is deliberately layered.
 
 ### `rosrustext_core`
-**ROS-agnostic lifecycle truth**
 
-Contains:
+**Semantic truth (ROS-agnostic)**
 
-- Lifecycle state machine (primary + transition states)
-- Explicit transition semantics
-- Callback result model (Success / Failure / Error)
-- Error processing and recovery rules
-- Activation gating primitive
+Defines **what ROS concepts mean**, independently of transport.
 
-Properties:
+Currently implemented:
 
-- No ROS messages
-- No async runtime assumptions
-- No transport or threading
-- Fully unit-testable in pure Rust
+* ROS 2 lifecycle state machine
+* Transition graph
+* Error and recovery semantics
+* Activation gating
+* Deterministic transition handling
 
-This crate defines *what lifecycle means*.
+Future scope:
 
----
+* Actions
+* Parameters
+* Node orchestration semantics
+* Execution and cancellation models
 
-### `rosrustext_roslibrust`
-**ROS-facing adaptation layer**
-
-Contains:
-
-- `LifecycleNode` abstraction
-- Mapping of ROS lifecycle services to core transitions
-- Activation-gated publishers
-- Activation-gated timers
-- Transport adapters (currently `roslibrust` / rosbridge)
-
-Properties:
-
-- All ROS concepts are isolated here
-- Transport is behind feature flags
-- Policy decisions (logging, shutdown behaviour) live here
-
-This crate defines *how lifecycle is exposed to ROS*.
+This crate contains **no ROS messages, no executors, no async assumptions**.
 
 ---
 
-## Lifecycle compatibility
+### Adapter crates (ROS-facing)
 
-The lifecycle model mirrors ROS 2 concepts:
+Adapters map the core semantics onto specific Rust ROS stacks.
 
-- Primary states:
-  - Unconfigured
-  - Inactive
-  - Active
-  - Finalized
-- Transitional states:
-  - Configuring
-  - Activating
-  - Deactivating
-  - CleaningUp
-  - ShuttingDown
-  - ErrorProcessing
-- Transition IDs aligned with ROS lifecycle services
-- Busy-state rejection
-- Deterministic shutdown from all primary states
+#### `rosrustext_roslibrust`
 
-Compatibility is verified by:
-- Unit tests against all transition paths
-- Live control via `ros2 lifecycle set`
-- Interaction with Python and C++ lifecycle managers (in progress)
+* Uses `roslibrust` + rosbridge
+* Works today with:
 
----
+  * `ros2 lifecycle`
+  * Python lifecycle managers
+  * `nav2_lifecycle_manager`
+* Includes:
 
-## What this is **not**
+  * Lifecycle proxy
+  * Bond heartbeat
+  * Transition graph service
 
-- ❌ A replacement for `rclcpp` or `rclpy`
-- ❌ A Rust reimplementation of `rcl`
-- ❌ An async framework or executor
-- ❌ A macro-driven DSL
+#### `rosrustext_ros2_rust` *(planned)*
 
-The intent is **boring correctness**, not convenience magic.
+* Uses native RCL bindings
+* Same lifecycle surface
+* Same tests
+* Same semantics
+* Different transport constraints
+
+Adapters are **replaceable**, not competing.
 
 ---
 
-## Current transport support
+## Lifecycle: first completed feature
 
-- `roslibrust` via rosbridge (WebSocket)
-- Lifecycle services exposed over rosbridge via a Rust proxy tool
-- Publisher and timer gating enforced in Rust
-- Nav2 lifecycle manager bond compatibility (heartbeat only)
+Lifecycle is the first feature implemented end-to-end because it is:
 
-Additional transports can be added without touching `rosrustext_core`.
+* Semantically rich
+* Tooling-heavy
+* Widely relied upon (Nav2, orchestration)
+* A good stress test for parity claims
 
----
+Current lifecycle support includes:
 
-## Lifecycle proxy tool (rosbridge)
+* All standard ROS 2 lifecycle services
+* Transition events
+* Transition graph introspection
+* Busy-state rejection
+* ErrorProcessing semantics
+* Bond compatibility for Nav2
+* Verified with:
 
-Lifecycle-aware roslibrust nodes expose **backend** endpoints under a private namespace:
+  * ROS CLI
+  * Python lifecycle manager
+  * Nav2 lifecycle manager
 
-- `/<target>/_rosrustext/change_state`
-- `/<target>/_rosrustext/get_state`
-- `/<target>/_rosrustext/get_available_states`
-- `/<target>/_rosrustext/get_available_transitions`
-- `/<target>/_rosrustext/get_transition_graph`
-- `/<target>/_rosrustext/transition_event`
-
-The Rust proxy tool bridges those to standard ROS 2 lifecycle endpoints so
-`ros2 lifecycle` works without glue code:
-
-- `/<target>/change_state`
-- `/<target>/get_state`
-- `/<target>/get_available_states`
-- `/<target>/get_available_transitions`
-- `/<target>/get_transition_graph`
-- `/<target>/transition_event`
-
-Tool crate:
-`crates/rosrustext_roslibrust/tools/rosrustext_lifecycle_proxy`
+Lifecycle is **done**, but the project is **not lifecycle-only**.
 
 ---
 
-## Scripts (local validation)
+## Testing philosophy
 
-From the repo root:
+Testing is layered by intent:
 
-- `./scripts/run_rosbridge.sh`
-- `./scripts/run_backend.sh`
-- `./scripts/run_proxy.sh`
-- `./scripts/run_lifecycle_test.sh`
-- `./scripts/run_transition_graph_test.sh`
-- `./scripts/test_transition_graph.sh`
-- `./scripts/test_python_lifecycle_manager.sh` (rosbridge + backend + proxy + rclpy manager)
-- `./scripts/run_all.sh` (single-terminal end-to-end run)
-- `./scripts/test_nav2_bond.sh` (rosbridge + backend + proxy + nav2 manager)
+1. **Core unit tests (Rust)**
+   Verify semantic correctness without ROS.
+2. **Adapter integration tests (Rust)**
+   Verify adapter contracts and state reconciliation.
+3. **System tests (CLI-level)**
+   Shell scripts that behave like real users and CI:
 
-`run_all.sh` starts rosbridge, the backend app, the proxy, runs lifecycle
-commands, then shuts everything down cleanly (SIGINT).
+   * `ros2 lifecycle`
+   * Python managers
+   * Nav2
 
-Note: rosbridge is launched with its node name set to the target node so
-`ros2 lifecycle set/get` can find it on the ROS graph.
+Shell scripts are intentional:
+they test **real ROS behavior**, not mocked APIs.
 
 ---
 
-## Quickstart (single terminal)
+## What this project is *not*
 
-```bash
-cd /home/ecm/fcsl/rosrustext
-AUTO_KILL_ROSBRIDGE=1 ./scripts/run_all.sh
-```
+* ❌ A replacement for `rclcpp` or `rclpy`
+* ❌ A single Rust ROS client library
+* ❌ A macro-driven abstraction layer
+* ❌ A green-field ROS reimplementation
 
-Expected output (abridged):
-
-```text
-[HH:MM:SS] starting rosbridge (node name: hyfleet_ring_roslibrust)
-[HH:MM:SS] starting backend
-[HH:MM:SS] starting proxy
-[HH:MM:SS] running lifecycle test
-[HH:MM:SS] lifecycle set /hyfleet_ring_roslibrust configure
-Transitioning successful
-[HH:MM:SS] lifecycle set /hyfleet_ring_roslibrust activate
-Transitioning successful
-[HH:MM:SS] lifecycle get /hyfleet_ring_roslibrust
-Active [3]
-[HH:MM:SS] done (logs: /home/ecm/fcsl/rosrustext/logs/run_all)
-```
-
-## Nav2 bond validation
-
-```bash
-cd /home/ecm/fcsl/rosrustext
-./scripts/test_nav2_bond.sh
-```
-
-Expected output (abridged):
-
-```text
-[HH:MM:SS] starting nav2 lifecycle manager
-[HH:MM:SS] nav2 lifecycle manager reports active
-```
+This is about **compatibility, correctness, and confidence**.
 
 ---
 
 ## Status
 
-- Core lifecycle: **implemented and fully tested**
-- Wrapper lifecycle services: **implemented (via proxy)**
-- Graceful shutdown semantics: **implemented**
-- Actions: **planned**
-- Parameters: **planned**
+* Lifecycle parity: **complete**
+* roslibrust adapter: **complete**
+* Nav2 compatibility: **verified**
+* ros2_rust adapter: **next**
+* Actions, parameters, execution: **planned**
 
-See `TODO.md` for a parity-oriented task breakdown.
+See `TODO.md` and parity documents for tracked work.
 
 ---
 
 ## Context
 
-This library is developed alongside a real industrial control system
-(OPC UA bridge, hydrogen refuelling),
-where correctness, observability, and controlled failure modes matter
-more than API sugar.
+This project is developed alongside real industrial systems
+(OPC UA bridges, safety-critical control),
+where Rust is chosen for correctness and failure containment —
+but must still operate inside the ROS 2 ecosystem.
 
-If something feels explicit or verbose, it is probably intentional.
+`rosrustext` exists so choosing Rust does **not** mean opting out of ROS 2.

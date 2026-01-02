@@ -4,7 +4,7 @@ This document tracks lifecycle parity for the **roslibrust transport adapter**
 (`rosrustext_roslibrust` + rosbridge).
 
 Canonical reference:
-- `lifecycle_parity_spec.md` (normative)
+- `docs/spec/lifecycle.md` (normative)
 
 This file answers:
 > “Given the ROS2 lifecycle spec, what does the roslibrust adapter provide today?”
@@ -57,7 +57,7 @@ detects a missing/unreadable overlay message.
 |------|--------|------|
 | Busy-state rejection | ✅ | Core enforces deterministic rejection |
 | Activation gating | ✅ | `ActivationGate` owned by node |
-| Publish suppression when inactive | ✅ | Silent drop (policy TBD) |
+| Publish suppression when inactive | ✅ | Silent drop (no warnings; publish returns `Ok(false)`) |
 | Timer suppression when inactive | ✅ | Matches publisher behavior |
 | Shutdown from any state | ✅ | Best-effort path implemented |
 | ErrorProcessing handling | ✅ | Delegated to core |
@@ -85,6 +85,12 @@ Current behavior (by design):
 This preserves ROS tooling usability while keeping a clear signal when the
 backend did not actually transition.
 
+### Shutdown semantics
+
+- Shutdown always resolves to `Finalized` (ShuttingDown → Finalized), regardless of callback result.
+- If shutdown is requested while a transition is in flight, the proxy treats the
+  pending goal state as the effective start state and issues a best-effort shutdown.
+
 ### Bond compatibility (Nav2 lifecycle manager)
 
 Nav2 uses `bond` to verify that managed nodes are alive after transitions.
@@ -105,8 +111,9 @@ with `nav2_lifecycle_manager` when rosbridge QoS settings are fixed.
 
 Verification:
 
-- `scripts/test_nav2_bond.sh`
-- `scripts/test_python_lifecycle_manager.sh`
+- `scripts/test/roslibrust/lifecycle/test_nav2_bond.sh`
+- `scripts/test/roslibrust/lifecycle/test_python_lifecycle_manager.sh`
+- `scripts/test/roslibrust/lifecycle/test_lifecycle_stress.sh`
 - `ros2 run nav2_lifecycle_manager lifecycle_manager --ros-args -p node_names:="[hyfleet_ring_roslibrust]" -p autostart:=true`
 
 ---
@@ -159,14 +166,14 @@ The roslibrust adapter is considered lifecycle-complete when:
   - Drive all valid transitions
   - Observe transition events
 - `ros2 lifecycle get/set` works without warnings
-- No semantic drift from `lifecycle_parity_spec.md`
+- No semantic drift from `docs/spec/lifecycle.md`
 
 ---
 
 ## Next Adapter
 
 A parallel document will exist for:
-- `lifecycle_parity_ros2_rust.md`
+- `docs/adapters/ros2rust/lifecycle/parity.md`
 
 The two adapter documents should match this spec while capturing adapter-specific
 constraints and deviations.

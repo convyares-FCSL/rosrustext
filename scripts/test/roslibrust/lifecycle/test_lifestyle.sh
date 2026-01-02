@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 TARGET_NODE="${TARGET_NODE:-hyfleet_ring_roslibrust}"
 BRIDGE_URL="${BRIDGE_URL:-ws://localhost:9090}"
 BRIDGE_PORT="${BRIDGE_PORT:-}"
@@ -9,6 +9,7 @@ LOG_DIR="${LOG_DIR:-$ROOT_DIR/logs/run_all}"
 ROSBRIDGE_LOG_TAIL_LINES="${ROSBRIDGE_LOG_TAIL_LINES:-400}"
 STARTUP_DELAY="${STARTUP_DELAY:-1}"
 STARTUP_TIMEOUT="${STARTUP_TIMEOUT:-30}"
+TOPIC_WAIT_TIMEOUT="${TOPIC_WAIT_TIMEOUT:-6}"
 NON_BRIDGE_GRACE_SECONDS="${NON_BRIDGE_GRACE_SECONDS:-2}"
 ROSBRIDGE_GRACE_SECONDS="${ROSBRIDGE_GRACE_SECONDS:-4}"
 SKIP_PROCESS_CHECK="${SKIP_PROCESS_CHECK:-0}"
@@ -226,7 +227,7 @@ fi
 
 log "starting rosbridge (node name: $ROSBRIDGE_NODE_NAME)"
 ROSBRIDGE_NODE_NAME="$ROSBRIDGE_NODE_NAME" TARGET_NODE="$TARGET_NODE" BRIDGE_URL="$BRIDGE_URL" \
-  start_bg rosbridge "$ROOT_DIR/scripts/run/run_rosbridge.sh"
+  start_bg rosbridge "$ROOT_DIR/scripts/run/roslibrust/lifecycle/run_rosbridge.sh"
 
 if ! wait_for_port "$BRIDGE_PORT" "$STARTUP_TIMEOUT"; then
   echo "rosbridge did not bind to port ${BRIDGE_PORT} within ${STARTUP_TIMEOUT}s (see $LOG_DIR/rosbridge.log)" >&2
@@ -236,20 +237,16 @@ fi
 sleep "$STARTUP_DELAY"
 
 log "starting backend"
-TARGET_NODE="$TARGET_NODE" BRIDGE_URL="$BRIDGE_URL" start_bg backend "$ROOT_DIR/scripts/run/run_backend.sh"
+TARGET_NODE="$TARGET_NODE" BRIDGE_URL="$BRIDGE_URL" start_bg backend "$ROOT_DIR/scripts/run/roslibrust/lifecycle/run_backend.sh"
 
 sleep "$STARTUP_DELAY"
 
 log "starting proxy"
-TARGET_NODE="$TARGET_NODE" BRIDGE_URL="$BRIDGE_URL" start_bg proxy "$ROOT_DIR/scripts/run/run_proxy.sh"
+TARGET_NODE="$TARGET_NODE" BRIDGE_URL="$BRIDGE_URL" start_bg proxy "$ROOT_DIR/scripts/run/roslibrust/lifecycle/run_proxy.sh"
 
 sleep "$STARTUP_DELAY"
 
-log "all components running (logs: $LOG_DIR)"
-log "press Ctrl-C to stop"
+log "running lifecycle test"
+TARGET_NODE="$TARGET_NODE" "$ROOT_DIR/scripts/run/roslibrust/lifecycle/run_lifecycle_test.sh"
 
-trap 'log "shutting down..."; cleanup; exit 0' INT TERM
-
-while true; do
-  sleep 1
-done
+log "done (logs: $LOG_DIR)"

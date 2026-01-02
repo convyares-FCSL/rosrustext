@@ -4,8 +4,8 @@ This document defines the *canonical* ROS2 lifecycle surface area and expected s
 It is transport-agnostic.
 
 Related implementation matrices:
-- `docs/lifecycle_parity_roslibrust.md`
-- `docs/lifecycle_parity_ros2_rust.md` (future)
+- `docs/adapters/roslibrust/lifecycle/parity.md`
+- `docs/adapters/ros2rust/lifecycle/parity.md` (future)
 
 ## Names & Interfaces
 
@@ -44,11 +44,18 @@ rosrustext introspection (custom, Jazzy-compatible):
 
 - Shutdown:
   - Valid from any primary state; maps to correct ROS shutdown IDs.
+  - Always resolves to Finalized (ShuttingDown → Finalized), regardless of callback result.
+  - If requested while transitioning, adapters should treat the pending goal state
+    as the effective start state and attempt best-effort shutdown.
 
 - Transition event:
   - Published after successful transitions.
   - Must not block state machine progression.
   - Ordering preserved per node instance.
+
+- Managed entities:
+  - Publisher/timer work is suppressed while inactive.
+  - Suppression is silent (no per-message warnings) to avoid log spam.
 
 - Error policy:
   - Invalid requests must not mutate state.

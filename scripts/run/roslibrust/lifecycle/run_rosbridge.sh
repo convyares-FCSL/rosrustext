@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 ROS2_WS_ROOT="${ROS2_WS_ROOT:-/home/ecm/ros2_rust_ws/ros2_ws}"
 ROSBRIDGE_NODE_NAME="${ROSBRIDGE_NODE_NAME:-rosbridge_websocket}"
 ROSBRIDGE_NODE_NAME="${ROSBRIDGE_NODE_NAME#/}"

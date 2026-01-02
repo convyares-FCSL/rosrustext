@@ -30,9 +30,9 @@ standard ROS2 lifecycle managers.
 - [x] ROS transition ID mapping (Configure / Activate / Deactivate / Cleanup / Shutdown)
 
 ### Alignment verification
-- [ ] Final cross-check against official ROS2 lifecycle diagram
-- [ ] Confirm edge cases (shutdown during transition, error escalation)
-- [ ] Decide whether CREATE / DESTROY remain wrapper-only (likely yes)
+- [x] Final cross-check against official ROS2 lifecycle diagram (see `docs/spec/lifecycle.md`)
+- [x] Confirm edge cases (shutdown during transition, error escalation) (see `docs/spec/lifecycle.md`)
+- [x] Decide whether CREATE / DESTROY remain wrapper-only (documented in `docs/adapters/roslibrust/lifecycle/parity.md`)
 
 ---
 
@@ -53,7 +53,7 @@ standard ROS2 lifecycle managers.
 - [x] Activation-gated publisher
 - [x] Activation-gated timer (tokio-based)
 - [x] Publish suppression when inactive
-- [ ] Decide warning vs silent drop policy (match ROS2 behaviour)
+- [x] Decide warning vs silent drop policy (silent drop; see `docs/adapters/roslibrust/lifecycle/parity.md`)
 
 ### Transport
 - [x] roslibrust integration behind feature flag
@@ -71,7 +71,7 @@ standard ROS2 lifecycle managers.
 - [x] ErrorProcessing recovery delegated to wrapper
 - [x] Best-effort shutdown path implemented
 - [x] Define fatal error shutdown policy (when to force Finalized)
-- [ ] Document shutdown semantics vs ROS2 expectations
+- [x] Document shutdown semantics vs ROS2 expectations (see `docs/spec/lifecycle.md`)
 
 ---
 
@@ -84,7 +84,7 @@ standard ROS2 lifecycle managers.
   - Implemented / Stubbed / Omitted
   - Notes vs `rclcpp_lifecycle`
 - [x] Explicitly document intentional deviations
-- [ ] Confirm “boring compatibility” with lifecycle managers
+- [x] Confirm “boring compatibility” with lifecycle managers (`scripts/test/roslibrust/lifecycle/test_python_lifecycle_manager.sh`, `scripts/test/roslibrust/lifecycle/test_nav2_bond.sh`, `scripts/test/roslibrust/lifecycle/test_lifecycle_stress.sh`)
 
 ---
 
@@ -108,9 +108,9 @@ standard ROS2 lifecycle managers.
 ## Infrastructure
 
 - [x] Logging conventions (severity mapping to ROS)
-- [ ] Config patterns (deterministic, testable)
-- [ ] Example lifecycle-managed node
-- [ ] Example showing publisher + timer gating
+- [x] Config patterns (deterministic, testable) (see `README.md`)
+- [x] Example lifecycle-managed node (see `docs/examples/lifecycle/minimal.md`)
+- [x] Example showing publisher + timer gating (see `docs/examples/lifecycle/minimal.md`)
 - [x] Rust lifecycle proxy tool (rosbridge)
 - [x] Local run scripts (rosbridge/backend/proxy/lifecycle test)
 - [x] Nav2 bond validation script

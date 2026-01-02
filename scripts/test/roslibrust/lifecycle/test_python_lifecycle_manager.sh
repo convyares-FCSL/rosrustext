@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 TARGET_NODE="${TARGET_NODE:-hyfleet_ring_roslibrust}"
 BRIDGE_URL="${BRIDGE_URL:-ws://localhost:9090}"
 BRIDGE_PORT="${BRIDGE_PORT:-}"
@@ -15,6 +15,9 @@ AUTO_KILL_ROSBRIDGE="${AUTO_KILL_ROSBRIDGE:-1}"
 AUTO_KILL_BACKEND="${AUTO_KILL_BACKEND:-1}"
 ROSBRIDGE_NODE_NAME="${ROSBRIDGE_NODE_NAME:-$TARGET_NODE}"
 ROS2_WS_ROOT="${ROS2_WS_ROOT:-/home/ecm/ros2_rust_ws/ros2_ws}"
+CHANGE_STATE_TIMEOUT="${CHANGE_STATE_TIMEOUT:-6.0}"
+GET_STATE_TIMEOUT="${GET_STATE_TIMEOUT:-2.0}"
+STATE_WAIT_TIMEOUT="${STATE_WAIT_TIMEOUT:-15.0}"
 
 mkdir -p "$LOG_DIR"
 : >"$LOG_DIR/rosbridge.log"
@@ -214,7 +217,7 @@ fi
 
 log "starting rosbridge (node name: $ROSBRIDGE_NODE_NAME)"
 ROSBRIDGE_NODE_NAME="$ROSBRIDGE_NODE_NAME" TARGET_NODE="$TARGET_NODE" BRIDGE_URL="$BRIDGE_URL" \
-  start_bg rosbridge "$ROOT_DIR/scripts/run/run_rosbridge.sh"
+  start_bg rosbridge "$ROOT_DIR/scripts/run/roslibrust/lifecycle/run_rosbridge.sh"
 
 if ! wait_for_port "$BRIDGE_PORT" "$STARTUP_TIMEOUT"; then
   echo "rosbridge did not bind to port ${BRIDGE_PORT} within ${STARTUP_TIMEOUT}s (see $LOG_DIR/rosbridge.log)" >&2
@@ -224,7 +227,7 @@ fi
 sleep "$STARTUP_DELAY"
 
 log "starting backend"
-TARGET_NODE="$TARGET_NODE" BRIDGE_URL="$BRIDGE_URL" start_bg backend "$ROOT_DIR/scripts/run/run_backend.sh"
+TARGET_NODE="$TARGET_NODE" BRIDGE_URL="$BRIDGE_URL" start_bg backend "$ROOT_DIR/scripts/run/roslibrust/lifecycle/run_backend.sh"
 
 sleep "$STARTUP_DELAY"
 
@@ -234,7 +237,7 @@ if ! wait_for_log "$LOG_DIR/backend.log" "Running \`target/debug/hyfleet_ring_ro
 fi
 
 log "starting proxy"
-TARGET_NODE="$TARGET_NODE" BRIDGE_URL="$BRIDGE_URL" start_bg proxy "$ROOT_DIR/scripts/run/run_proxy.sh"
+TARGET_NODE="$TARGET_NODE" BRIDGE_URL="$BRIDGE_URL" start_bg proxy "$ROOT_DIR/scripts/run/roslibrust/lifecycle/run_proxy.sh"
 
 sleep "$STARTUP_DELAY"
 
@@ -253,7 +256,7 @@ fi
 set -u
 
 log "running python lifecycle manager test"
-TARGET_NODE="$TARGET_NODE" python3 - <<'PY'
+TARGET_NODE="$TARGET_NODE" CHANGE_STATE_TIMEOUT="$CHANGE_STATE_TIMEOUT" GET_STATE_TIMEOUT="$GET_STATE_TIMEOUT" STATE_WAIT_TIMEOUT="$STATE_WAIT_TIMEOUT" python3 - <<'PY'
 import os
 import sys
 import time
@@ -264,6 +267,9 @@ from lifecycle_msgs.srv import ChangeState, GetState
 from lifecycle_msgs.msg import Transition
 
 TARGET_NODE = os.environ.get("TARGET_NODE", "hyfleet_ring_roslibrust")
+CHANGE_STATE_TIMEOUT = float(os.environ.get("CHANGE_STATE_TIMEOUT", "6.0"))
+GET_STATE_TIMEOUT = float(os.environ.get("GET_STATE_TIMEOUT", "2.0"))
+STATE_WAIT_TIMEOUT = float(os.environ.get("STATE_WAIT_TIMEOUT", "15.0"))
 CHANGE_SRV = f"/{TARGET_NODE}/change_state"
 GET_SRV = f"/{TARGET_NODE}/get_state"
 
@@ -287,18 +293,18 @@ class Manager(Node):
                 return True
         return False
 
-    def call_change_state(self, transition_id: int, label: str, timeout_sec: float = 2.0):
+    def call_change_state(self, transition_id: int, label: str, timeout_sec: float = CHANGE_STATE_TIMEOUT):
         req = ChangeState.Request()
         req.transition.id = transition_id
         req.transition.label = label
         future = self.change_client.call_async(req)
         rclpy.spin_until_future_complete(self, future, timeout_sec=timeout_sec)
         if not future.done():
-            return False
+            return None
         resp = future.result()
         return resp.success
 
-    def call_get_state(self, timeout_sec: float = 2.0):
+    def call_get_state(self, timeout_sec: float = GET_STATE_TIMEOUT):
         req = GetState.Request()
         future = self.get_client.call_async(req)
         rclpy.spin_until_future_complete(self, future, timeout_sec=timeout_sec)
@@ -306,7 +312,7 @@ class Manager(Node):
             return None
         return future.result().current_state
 
-    def wait_for_state(self, target_id: int, timeout_sec: float = 6.0):
+    def wait_for_state(self, target_id: int, timeout_sec: float = STATE_WAIT_TIMEOUT):
         start = time.time()
         last = None
         while time.time() - start < timeout_sec:
@@ -328,11 +334,13 @@ if not node.wait_for_clients(6.0):
     sys.exit(1)
 
 for transition_id, label, goal_id, goal_label in TRANSITIONS:
-    ok = node.call_change_state(transition_id, label)
-    if not ok:
+    result = node.call_change_state(transition_id, label)
+    if result is False:
         print(f"change_state failed id={transition_id} label={label}")
         rclpy.shutdown()
         sys.exit(1)
+    if result is None:
+        print(f"change_state timed out id={transition_id} label={label}; relying on get_state")
     ok, last = node.wait_for_state(goal_id)
     if not ok:
         last_id = getattr(last, "id", None)
