@@ -10,6 +10,10 @@ The long-term objective is:
 > work with the same tools, follow the same semantics,
 > and can be composed freely in production systems.
 
+Supported libraries (both are very good):
+> RosLibRust : https://github.com/RosLibRust/roslibrust
+> Ros2_Rust : https://github.com/ros2-rust/ros2_rust
+
 Lifecycle support is the **first completed feature**, not the end goal.
 
 ---
