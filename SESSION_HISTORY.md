@@ -1,33 +1,218 @@
-# rclrust – Session History
+# rosrustext – Session History
+
+This file records what was actually implemented, validated, and learned.
+Entries reflect real behaviour, not intent.
+
+---
 
 ## Session 1 – Library bootstrap
-- Established vendor-style Cargo workspace
-- Split into:
-  - rclrust_core (pure logic)
-  - rclrust_wrapper (ROS adapter)
-- Chose roslibrust over rclrs
-- Defined CoreError model
+- Established vendor-style Cargo workspace.
+- Split library into:
+  - `rosrustext_core` (pure lifecycle logic)
+  - `rosrustext_roslibrust` (ROS-facing adaptation)
+- Explicitly rejected `rclrs`; selected `roslibrust + rosbridge`.
+- Defined initial error and result models.
+- Enforced “no ROS in core” rule from day one.
 
-## Session 2 – Lifecycle semantics
-- Implemented full ROS2-style lifecycle state machine
-- Added explicit transition states
-- Added begin → callback → finish model
-- Added ErrorProcessing semantics
-- Added deterministic unit tests
+---
 
-## Session 3 – Wrapper abstraction
-- Implemented LifecycleNode
-- Added activation gating
-- Implemented ChangeState / GetState handlers
-- Mapped ROS transition IDs
-- Ensured parity with lifecycle manager expectations
+## Session 2 – Lifecycle semantics (core)
+- Implemented full ROS 2–style lifecycle state machine:
+  - Primary states (Unconfigured / Inactive / Active / Finalized)
+  - Transitional states (Configuring, Activating, etc.)
+- Implemented explicit:
+  - begin → callback → finish pipeline
+  - callback result model (Success / Failure / Error)
+- Added ErrorProcessing recovery semantics.
+- Implemented deterministic shutdown from all primary states.
+- Added exhaustive unit tests covering:
+  - valid transitions
+  - invalid transitions
+  - busy-state rejection
+  - error recovery paths
+
+Outcome:
+Core lifecycle truth is deterministic, testable, and ROS-agnostic.
+
+---
+
+## Session 3 – Wrapper lifecycle node
+- Implemented `LifecycleNode` abstraction.
+- Added internal state tracking + inspection.
+- Introduced `ActivationGate` owned by the lifecycle node.
+- Implemented ROS-compatible handlers:
+  - ChangeState
+  - GetState
+  - GetAvailableTransitions
+- Mapped ROS transition IDs to core semantics.
+- Verified behavior against ROS lifecycle expectations.
+
+Outcome:
+Lifecycle semantics are now externally controllable without leaking ROS into core logic.
+
+---
 
 ## Session 4 – Managed resources
-- Added activation-gated publishers
-- Added activation-gated timers (tokio)
-- Isolated roslibrust transport behind feature flags
-- Validated behavior with real rosbridge nodes
+- Implemented activation-gated publisher abstraction.
+- Implemented activation-gated timer abstraction (Tokio-based).
+- Ensured:
+  - publish suppression when inactive
+  - no log spam when gated
+- Added compile-only trait tests for transport adapters.
+- Validated behavior with live rosbridge connections.
 
-Guiding principle:
-**Model lifecycle truth once, then adapt to ROS.
+Outcome:
+Lifecycle state now *actually* controls runtime behavior.
+
+---
+
+## Session 5 – ROS transport integration (rosbridge)
+- Isolated roslibrust transport under feature flags.
+- Wired lifecycle services over rosbridge:
+  - `/node_name/change_state`
+- Confirmed control from:
+  - `ros2 service call`
+  - Python ROS 2 CLI tools
+- Verified correct transition ordering:
+  - Unconfigured → Inactive → Active
+- Confirmed activation gate opens/closes correctly.
+
+Outcome:
+Rust lifecycle node is controllable by standard ROS tooling.
+
+---
+
+## Session 6 – Graceful shutdown semantics
+- Identified hard shutdown on SIGINT.
+- Implemented lifecycle-aware shutdown path:
+  - Ctrl-C triggers best-effort lifecycle shutdown
+  - Final state transitions to Finalized
+- Ensured shutdown does not race service handlers.
+- Added minimal delay for clean teardown/log flush.
+- Verified behavior live under rosbridge.
+
+Outcome:
+Shutdown semantics now match ROS lifecycle expectations.
+
+---
+
+## Session 7 – Environment & tooling validation
+- Diagnosed rosbridge message import failure.
+- Identified root cause: missing sourced interface package.
+- Fixed by building and sourcing `hyfleet_interfaces` before launching rosbridge.
+- Confirmed:
+  - topic introspection works
+  - pub/sub works
+  - lifecycle services remain functional
+
+Outcome:
+End-to-end Rust lifecycle node works under a real ROS 2 Jazzy environment.
+
+---
+
+## Session 8 – Rust lifecycle proxy + scripts
+- Implemented Rust lifecycle proxy tool over roslibrust (no Python).
+- Exposed ROS 2 lifecycle services and `/transition_event` via proxy.
+- Added private backend namespace for rosrustext lifecycle endpoints.
+- Added local scripts:
+  - rosbridge launcher
+  - backend + proxy runners
+  - lifecycle CLI test
+  - single-terminal `run_all.sh` orchestration
+- Improved cleanup to avoid stale rosbridge processes.
+- Refactored lifecycle core into focused modules and moved ROS ID mapping into
+  the roslibrust wrapper layer.
+- Added proxy utilities module and basic unit tests.
+- Documented rosbridge node naming requirement for ROS 2 CLI discovery.
+
+Outcome:
+`ros2 lifecycle set/get` works end-to-end over rosbridge with Rust-only tooling.
+
+---
+
+## Session 9 – Nav2 lifecycle manager parity + bond
+- Implemented optimistic transitional state reporting in the proxy to match
+  rclcpp-style observables during transitions.
+- Added per-transition event tracking to avoid false timeout warnings when
+  configure/activate happen back-to-back.
+- Implemented minimal bond heartbeat support (`bond/msg/Status`) in the proxy
+  so `nav2_lifecycle_manager` bonds succeed without disabling bond.
+- Added local ROS message override for bond to avoid roslibrust codegen
+  parsing issues with `bond/Constants`.
+- Added `test_nav2_bond.sh` for end-to-end validation with Nav2.
+- Documented bond behavior and updated parity docs.
+
+Outcome:
+Nav2 lifecycle manager can configure/activate rosrustext nodes over rosbridge
+with bond enabled.
+
+---
+
+## Session 10 – Lifecycle parity close-out (introspection + manager tests)
+- Fixed rosrustext interface package generation:
+  - included custom `GetTransitionGraph` and `Status.msg` in interface build
+  - added missing `std_msgs` dependency for message generation
+- Aligned interface discovery paths and run scripts to use the `interfaces/` tree.
+- Added a local `bond` message override to avoid roslibrust parsing failures.
+- Expanded codegen search paths so `std_msgs` is resolvable during Rust builds.
+- Hardened `test_transition_graph` parsing for ros2cli output formats.
+- Added a Python lifecycle manager integration test script.
+- Stabilized Nav2 bond test timing and ensured backend/proxy readiness checks.
+- Updated parity docs/spec and README to reflect current behavior and tests.
+
+Outcome:
+Lifecycle parity validation now covers custom introspection, Python manager
+integration, and Nav2 bond compatibility with reproducible scripts.
+
+---
+
+## Session 11 – Stress test hardening + config/doc cleanup
+- Added lifecycle stress test script with transition-event capture, ordering checks,
+  and tunable delays/timeouts.
+- Hardened Python lifecycle manager test to tolerate rosbridge response delays.
+- Increased Nav2 lifecycle manager wait timeout for deterministic runs.
+- Documented proxy config precedence, shutdown semantics, and publish suppression policy.
+- Added a minimal lifecycle-managed node example doc (publisher + timer gating).
+
+Outcome:
+Lifecycle stress validation is reproducible; documentation and TODOs reflect
+final parity status and configuration behavior.
+
+---
+
+## Session 12 – Script/doc layout by adapter + feature
+- Moved roslibrust lifecycle scripts under adapter/feature folders:
+  - `scripts/run/roslibrust/lifecycle/*`
+  - `scripts/test/roslibrust/lifecycle/*`
+- Added placeholders for future roslibrust action/parameter parity tests.
+- Moved lifecycle docs into adapter/spec/example folders with simplified names.
+- Added placeholders for future ros2rust and roslibrust action/parameter docs.
+- Updated docs and README references to the new locations.
+
+Outcome:
+Scripts are ready to scale to multiple adapters and parity features without
+mixing concerns.
+
+---
+
+## Session 13 – Integration tests + proxy refactor
+- Split proxy logic into reusable library modules:
+  - bond agent
+  - config parsing
+  - proxy lifecycle state tracking
+- Added Rust integration tests for lifecycle contracts (core + proxy) and
+  transition graph mapping.
+- Added proxy config/bond semantics tests (no ROS tooling required).
+- Added `scripts/test/run_all_tests.sh` aggregator and documented test layers.
+
+Outcome:
+Lifecycle parity now has Rust-level contract coverage and a single entry point
+for full system validation.
+
+---
+
+## Guiding principle
+
+**Model lifecycle truth once, test it in isolation,
+then adapt it to ROS.
 Never let transport shape the semantics.**

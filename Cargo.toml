@@ -1,6 +1,23 @@
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+authors = ["FCSL"]
+repository = "https://github.com/convyares-FCSL/rosrustext_fcsl"
+homepage = "https://github.com/convyares-FCSL/rosrustext_fcsl"
+description = "Explicit, testable ROS 2 lifecycle extensions for Rust"
+rust-version = "1.75"
+
+[workspace.dependencies]
+thiserror = "2.0"
+tracing = "0.1"
+tokio = "1.48"
+
 [workspace]
-resolver = "2"
 members = [
-  "crates/rclrust_core",
-  "crates/rclrust_wrapper",
+    "crates/rosrustext_core",
+    "crates/rosrustext_roslibrust",
+    "crates/rosrustext_roslibrust/tools/rosrustext_lifecycle_proxy",
+    # "crates/rosrustext_ros2_rust", # later
 ]
+resolver = "2"

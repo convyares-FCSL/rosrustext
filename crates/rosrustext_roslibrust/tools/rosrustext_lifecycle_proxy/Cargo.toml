@@ -1,0 +1,19 @@
+[package]
+name = "rosrustext_lifecycle_proxy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Rust lifecycle proxy for rosrustext_roslibrust nodes over rosbridge"
+
+[dependencies]
+roslibrust = { version = "0.18.0", features = ["rosbridge", "codegen"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "sync", "time"] }
+tracing = { workspace = true }
+tracing-subscriber = "0.3"
+rosrustext_core = { path = "../../../rosrustext_core" }
+rosrustext_roslibrust = { path = "../.." }
+
+[build-dependencies]
+roslibrust = { version = "0.18.0", features = ["codegen"] }

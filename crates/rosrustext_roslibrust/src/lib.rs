@@ -1,0 +1,16 @@
+//! rosrustext_roslibrust
+//!
+//! ROS-facing adapter layer built on top of roslibrust.
+//! Provides lifecycle + action surfaces compatible with ROS 2 tooling,
+//! while keeping core semantics in `rosrustext_core`.
+
+// Public modules
+pub mod error;
+
+pub mod lifecycle;
+pub mod logging;
+pub mod transport;
+
+// Re-export core types that wrapper users will commonly need
+pub use rosrustext_core::error::{CoreError, Result};
+pub use rosrustext_core::lifecycle::{CallbackResult, State, Transition};

@@ -1,7 +1,89 @@
-/target
-**/target
+# =========================
+# Secrets / Environment
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# Build artifacts (ROS / colcon)
+# =========================
+build/
+install/
+log/
+logs/
+scripts/logs/
+
+# =========================
+# Rust (Cargo)
+# =========================
+**/target/
 Cargo.lock
-*.swp
+
+# =========================
+# C / C++ build artifacts
+# =========================
+*.o
+*.obj
+*.a
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.out
+
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.eggs/
+.venv/
+venv/
+ENV/
+
+# =========================
+# ROS 2 / ament / DDS
+# =========================
+*.db
 *.log
-.idea/
+rosbag*/
+*.bag
+*.bag.active
+
+# =========================
+# VS Code
+# =========================
 .vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+
+# =========================
+# WSL / Linux
+# =========================
+*~
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# =========================
+# CMake
+# =========================
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# =========================
+# Misc
+# =========================
+compile_commands.json
+coverage/
+lcov.info

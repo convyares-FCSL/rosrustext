@@ -1,0 +1,12 @@
+[package]
+name = "rosrustext_core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "ROS-agnostic lifecycle and action state machines"
+
+[dependencies]
+thiserror.workspace = true
+tracing.workspace = true
