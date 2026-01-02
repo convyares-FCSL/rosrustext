@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TARGET_NODE="${TARGET_NODE:-hyfleet_ring_roslibrust}"
 BRIDGE_URL="${BRIDGE_URL:-ws://localhost:9090}"
 BRIDGE_PORT="${BRIDGE_PORT:-}"
 LOG_DIR="${LOG_DIR:-$ROOT_DIR/logs/run_all}"
 ROSBRIDGE_LOG_TAIL_LINES="${ROSBRIDGE_LOG_TAIL_LINES:-400}"
 STARTUP_DELAY="${STARTUP_DELAY:-1}"
-STARTUP_TIMEOUT="${STARTUP_TIMEOUT:-6}"
+STARTUP_TIMEOUT="${STARTUP_TIMEOUT:-30}"
 TOPIC_WAIT_TIMEOUT="${TOPIC_WAIT_TIMEOUT:-6}"
 NON_BRIDGE_GRACE_SECONDS="${NON_BRIDGE_GRACE_SECONDS:-2}"
 ROSBRIDGE_GRACE_SECONDS="${ROSBRIDGE_GRACE_SECONDS:-4}"
@@ -122,7 +122,7 @@ cleanup() {
 
   if [[ "$AUTO_KILL_ROSBRIDGE" == "1" ]]; then
     if [[ "$rosbridge_alive" == "1" ]] || ([[ -n "$BRIDGE_PORT" ]] && port_in_use "$BRIDGE_PORT"); then
-      BRIDGE_URL="$BRIDGE_URL" TIMEOUT=2 FORCE=1 "$ROOT_DIR/scripts/kill_rosbridge.sh" >/dev/null 2>&1 || true
+      BRIDGE_URL="$BRIDGE_URL" TIMEOUT=2 FORCE=1 "$ROOT_DIR/scripts/kill/kill_rosbridge.sh" >/dev/null 2>&1 || true
     fi
   fi
 
@@ -194,7 +194,7 @@ log() {
 if [[ "$SKIP_PROCESS_CHECK" != "1" ]]; then
   if pgrep -f "$TARGET_NODE" >/dev/null 2>&1; then
     if [[ "$AUTO_KILL_BACKEND" == "1" ]]; then
-      TARGET_NODE="$TARGET_NODE" FORCE=1 "$ROOT_DIR/scripts/kill_backend.sh" >/dev/null 2>&1 || true
+      TARGET_NODE="$TARGET_NODE" FORCE=1 "$ROOT_DIR/scripts/kill/kill_backend.sh" >/dev/null 2>&1 || true
     else
       echo "${TARGET_NODE} already running; stop it or set SKIP_PROCESS_CHECK=1 or AUTO_KILL_BACKEND=1." >&2
       exit 1
@@ -218,7 +218,7 @@ if [[ "$SKIP_PROCESS_CHECK" != "1" ]]; then
 fi
 if port_in_use "$BRIDGE_PORT"; then
   if [[ "$AUTO_KILL_ROSBRIDGE" == "1" ]]; then
-    BRIDGE_URL="$BRIDGE_URL" FORCE=1 "$ROOT_DIR/scripts/kill_rosbridge.sh" >/dev/null 2>&1 || true
+    BRIDGE_URL="$BRIDGE_URL" FORCE=1 "$ROOT_DIR/scripts/kill/kill_rosbridge.sh" >/dev/null 2>&1 || true
   else
     echo "Port ${BRIDGE_PORT} already in use; stop existing rosbridge or set BRIDGE_URL to a free port." >&2
     exit 1
@@ -227,7 +227,7 @@ fi
 
 log "starting rosbridge (node name: $ROSBRIDGE_NODE_NAME)"
 ROSBRIDGE_NODE_NAME="$ROSBRIDGE_NODE_NAME" TARGET_NODE="$TARGET_NODE" BRIDGE_URL="$BRIDGE_URL" \
-  start_bg rosbridge "$ROOT_DIR/scripts/run_rosbridge.sh"
+  start_bg rosbridge "$ROOT_DIR/scripts/run/run_rosbridge.sh"
 
 if ! wait_for_port "$BRIDGE_PORT" "$STARTUP_TIMEOUT"; then
   echo "rosbridge did not bind to port ${BRIDGE_PORT} within ${STARTUP_TIMEOUT}s (see $LOG_DIR/rosbridge.log)" >&2
@@ -237,16 +237,16 @@ fi
 sleep "$STARTUP_DELAY"
 
 log "starting backend"
-TARGET_NODE="$TARGET_NODE" BRIDGE_URL="$BRIDGE_URL" start_bg backend "$ROOT_DIR/scripts/run_backend.sh"
+TARGET_NODE="$TARGET_NODE" BRIDGE_URL="$BRIDGE_URL" start_bg backend "$ROOT_DIR/scripts/run/run_backend.sh"
 
 sleep "$STARTUP_DELAY"
 
 log "starting proxy"
-TARGET_NODE="$TARGET_NODE" BRIDGE_URL="$BRIDGE_URL" start_bg proxy "$ROOT_DIR/scripts/run_proxy.sh"
+TARGET_NODE="$TARGET_NODE" BRIDGE_URL="$BRIDGE_URL" start_bg proxy "$ROOT_DIR/scripts/run/run_proxy.sh"
 
 sleep "$STARTUP_DELAY"
 
 log "running lifecycle test"
-TARGET_NODE="$TARGET_NODE" "$ROOT_DIR/scripts/run_lifecycle_test.sh"
+TARGET_NODE="$TARGET_NODE" "$ROOT_DIR/scripts/run/run_lifecycle_test.sh"
 
 log "done (logs: $LOG_DIR)"

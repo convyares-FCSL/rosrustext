@@ -34,6 +34,7 @@ pub enum ErrorKind {
     InvalidState,
     InvalidTransition,
     NotSupported,
+    Transport,
     Io,
     ProtocolViolation,
     Timeout,

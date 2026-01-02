@@ -148,6 +148,24 @@ with bond enabled.
 
 ---
 
+## Session 10 – Lifecycle parity close-out (introspection + manager tests)
+- Fixed rosrustext interface package generation:
+  - included custom `GetTransitionGraph` and `Status.msg` in interface build
+  - added missing `std_msgs` dependency for message generation
+- Aligned interface discovery paths and run scripts to use the `interfaces/` tree.
+- Added a local `bond` message override to avoid roslibrust parsing failures.
+- Expanded codegen search paths so `std_msgs` is resolvable during Rust builds.
+- Hardened `test_transition_graph` parsing for ros2cli output formats.
+- Added a Python lifecycle manager integration test script.
+- Stabilized Nav2 bond test timing and ensured backend/proxy readiness checks.
+- Updated parity docs/spec and README to reflect current behavior and tests.
+
+Outcome:
+Lifecycle parity validation now covers custom introspection, Python manager
+integration, and Nav2 bond compatibility with reproducible scripts.
+
+---
+
 ## Guiding principle
 
 **Model lifecycle truth once, test it in isolation,

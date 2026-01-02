@@ -79,3 +79,39 @@ pub mod get_available_states {
         pub states: Vec<State>,
     }
 }
+
+/// Mirrors lifecycle transition graph introspection, transport-agnostic.
+pub(crate) mod get_transition_graph {
+    #[allow(dead_code)]
+    #[derive(Debug, Copy, Clone, Eq, PartialEq)]
+    pub struct Request;
+
+    #[allow(dead_code)]
+    #[derive(Debug, Clone, Eq, PartialEq)]
+    pub struct State {
+        pub id: u8,
+        pub label: String,
+    }
+
+    #[allow(dead_code)]
+    #[derive(Debug, Clone, Eq, PartialEq)]
+    pub struct Transition {
+        pub id: u8,
+        pub label: String,
+    }
+
+    #[allow(dead_code)]
+    #[derive(Debug, Clone, Eq, PartialEq)]
+    pub struct TransitionDescription {
+        pub transition: Transition,
+        pub start_state: State,
+        pub goal_state: State,
+    }
+
+    #[allow(dead_code)]
+    #[derive(Debug, Clone, Eq, PartialEq)]
+    pub struct Response {
+        pub states: Vec<State>,
+        pub transitions: Vec<TransitionDescription>,
+    }
+}

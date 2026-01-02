@@ -46,7 +46,7 @@ standard ROS2 lifecycle managers.
 - [x] `GetState` handler
 - [x] `GetAvailableTransitions` handler
 - [x] `GetAvailableStates` handler
-- [ ] `GetTransitionGraph` handler
+- [x] `GetTransitionGraph` handler
 - [x] Lifecycle state change publisher (`/transition_event` equivalent)
 
 ### Managed entities
@@ -62,14 +62,15 @@ standard ROS2 lifecycle managers.
 - [x] Wire remaining lifecycle services via rosbridge (via Rust proxy tool)
 - [x] `ros2 lifecycle set/get` works over rosbridge (proxy)
 - [x] Document rosbridge node name requirement for CLI discovery
-- [ ] Verify compatibility with Python lifecycle manager
+- [x] Document ros2cli interface rendering caveat for broken overlay lifecycle_msgs
+- [x] Verify compatibility with Python lifecycle manager
 - [x] Verify compatibility with C++ lifecycle manager (nav2_lifecycle_manager)
 - [x] Bond heartbeat support for Nav2 lifecycle manager
 
 ### Error & shutdown policy
 - [x] ErrorProcessing recovery delegated to wrapper
 - [x] Best-effort shutdown path implemented
-- [ ] Define fatal error shutdown policy (when to force Finalized)
+- [x] Define fatal error shutdown policy (when to force Finalized)
 - [ ] Document shutdown semantics vs ROS2 expectations
 
 ---
@@ -78,11 +79,11 @@ standard ROS2 lifecycle managers.
 
 > This section blocks Milestone 6 completion.
 
-- [ ] Create lifecycle parity table:
+- [x] Create lifecycle parity table:
   - Service/topic name
   - Implemented / Stubbed / Omitted
   - Notes vs `rclcpp_lifecycle`
-- [ ] Explicitly document intentional deviations
+- [x] Explicitly document intentional deviations
 - [ ] Confirm “boring compatibility” with lifecycle managers
 
 ---
@@ -106,7 +107,7 @@ standard ROS2 lifecycle managers.
 
 ## Infrastructure
 
-- [ ] Logging conventions (severity mapping to ROS)
+- [x] Logging conventions (severity mapping to ROS)
 - [ ] Config patterns (deterministic, testable)
 - [ ] Example lifecycle-managed node
 - [ ] Example showing publisher + timer gating

@@ -6,6 +6,7 @@
 
 /// Re-export core lifecycle types
 pub use rosrustext_core::lifecycle::{ActivationGate, CallbackResult, LifecycleCallbacks};
+pub use rosrustext_core::lifecycle::{transition_graph, TransitionEdge, TransitionGraph};
 
 // ROS lifecycle IDs/mapping (wrapper side).
 mod ros;

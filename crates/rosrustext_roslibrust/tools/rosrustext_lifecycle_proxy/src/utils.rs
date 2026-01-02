@@ -15,6 +15,7 @@ pub const SERVICE_CHANGE_STATE: &str = "change_state";
 pub const SERVICE_GET_STATE: &str = "get_state";
 pub const SERVICE_GET_AVAILABLE_STATES: &str = "get_available_states";
 pub const SERVICE_GET_AVAILABLE_TRANSITIONS: &str = "get_available_transitions";
+pub const SERVICE_GET_TRANSITION_GRAPH: &str = "get_transition_graph";
 pub const TOPIC_TRANSITION_EVENT: &str = "transition_event";
 pub const TOPIC_BOND: &str = "/bond";
 
@@ -22,6 +23,7 @@ pub struct Config {
     pub node_name: String,
     pub target_node: String,
     pub bridge_url: String,
+    pub bond_enabled: bool,
 }
 
 impl Config {
@@ -31,6 +33,10 @@ impl Config {
             env::var("ROSRUSTEXT_TARGET_NODE").unwrap_or_else(|_| DEFAULT_TARGET_NODE.to_string());
         let mut bridge_url =
             env::var("ROSRUSTEXT_BRIDGE_URL").unwrap_or_else(|_| DEFAULT_BRIDGE_URL.to_string());
+        let mut bond_enabled = env::var("ROSRUSTEXT_BOND")
+            .ok()
+            .and_then(parse_bool)
+            .unwrap_or(true);
 
         let mut args = env::args().skip(1).peekable();
         while let Some(arg) = args.next() {
@@ -54,6 +60,9 @@ impl Config {
                         bridge_url = value;
                     }
                 }
+                "--no-bond" => {
+                    bond_enabled = false;
+                }
                 _ if arg.starts_with("--node-name=") => {
                     node_name = Some(arg["--node-name=".len()..].to_string());
                 }
@@ -73,14 +82,23 @@ impl Config {
             node_name,
             target_node,
             bridge_url,
+            bond_enabled,
         }
     }
 }
 
 fn print_usage() {
     println!(
-        "rosrustext_lifecycle_proxy --target-node <name> [--node-name <name>] [--bridge-url ws://host:port]"
+        "rosrustext_lifecycle_proxy --target-node <name> [--node-name <name>] [--bridge-url ws://host:port] [--no-bond]"
     );
+}
+
+fn parse_bool(value: String) -> Option<bool> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "1" | "true" | "yes" | "on" => Some(true),
+        "0" | "false" | "no" | "off" => Some(false),
+        _ => None,
+    }
 }
 
 pub fn frontend_service(target: &str, service: &str) -> String {
@@ -92,12 +110,21 @@ pub fn backend_path(target: &str, name: &str) -> String {
 }
 
 pub fn log_core_error(err: CoreError) {
-    warn!("{err}");
+    match err.severity {
+        rosrustext_core::error::Severity::Trace => tracing::trace!("{err}"),
+        rosrustext_core::error::Severity::Debug => tracing::debug!("{err}"),
+        rosrustext_core::error::Severity::Info => tracing::info!("{err}"),
+        rosrustext_core::error::Severity::Warn => warn!("{err}"),
+        rosrustext_core::error::Severity::Error | rosrustext_core::error::Severity::Fatal => {
+            tracing::error!("{err}")
+        }
+    }
 }
 
 pub fn transport_error(context: &'static str, err: roslibrust::Error) -> CoreError {
     CoreError::error()
         .domain(Domain::Transport)
+        .kind(ErrorKind::Transport)
         .msgf(format_args!("{context}: {err}"))
         .payload(Payload::Context {
             key: "where",

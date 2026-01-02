@@ -5,7 +5,12 @@
 
 use std::sync::{Arc, Mutex};
 
+use crate::error::log_core_error;
 use crate::lifecycle::{dtos, LifecycleNode};
+use rosrustext_core::lifecycle::finish_with_error_handling;
+use rosrustext_core::lifecycle::CallbackResult;
+use rosrustext_core::lifecycle::Transition;
+use tracing::warn;
 
 /// ROS-facing lifecycle service adapter.
 ///
@@ -26,8 +31,59 @@ impl LifecycleService {
         &self,
         req: dtos::change_state::Request,
     ) -> dtos::change_state::Response {
-        let mut node = self.node.lock().expect("lifecycle node poisoned");
-        node.handle_change_state(req)
+        let work = {
+            let mut node = self.node.lock().expect("lifecycle node poisoned");
+            node.begin_transition_ros(req.transition_id)
+        };
+
+        match work {
+            Ok(work) => {
+                let node = Arc::clone(&self.node);
+                spawn_transition_task(move || {
+                    let mut work = work;
+                    let result = run_transition_callback(work.transition, work.callbacks.as_mut());
+                    let on_error = if result == CallbackResult::Error {
+                        Some(work.callbacks.on_error())
+                    } else {
+                        None
+                    };
+
+                    let final_state = match finish_with_error_handling(
+                        work.intermediate_state,
+                        work.transition,
+                        result,
+                        on_error,
+                    ) {
+                        Ok(state) => state,
+                        Err(err) => {
+                            log_core_error(err);
+                            if let Ok(mut guard) = node.lock() {
+                                guard.abort_transition_ros(work);
+                            }
+                            return;
+                        }
+                    };
+
+                    match node.lock() {
+                        Ok(mut guard) => {
+                            if let Err(err) = guard.complete_transition_ros(work, final_state) {
+                                log_core_error(err);
+                            }
+                        }
+                        Err(_) => warn!("lifecycle node poisoned"),
+                    }
+                });
+
+                dtos::change_state::Response {
+                    success: true,
+                    message: "transition accepted".to_string(),
+                }
+            }
+            Err(e) => dtos::change_state::Response {
+                success: false,
+                message: format!("transition failed: {e}"),
+            },
+        }
     }
 
     /// Adapter for ROS-facing handlers that only need a transition id.
@@ -60,6 +116,15 @@ impl LifecycleService {
         node.handle_get_available_states(req)
     }
 
+    /// DTO handler: GetTransitionGraph
+    pub fn handle_get_transition_graph(
+        &self,
+        req: dtos::get_transition_graph::Request,
+    ) -> rosrustext_core::error::Result<dtos::get_transition_graph::Response> {
+        let node = self.node.lock().expect("lifecycle node poisoned");
+        node.handle_get_transition_graph(req)
+    }
+
     /// Best-effort graceful shutdown:
     /// - picks the correct shutdown transition id for the node's current state
     /// - drives the lifecycle so gate/callbacks run
@@ -68,9 +133,37 @@ impl LifecycleService {
         let Some(transition_id) = node.shutdown_transition_ros_id() else {
             return (true, "no shutdown transition for current state".to_string());
         };
-        let resp = node
-            .handle_change_state(crate::lifecycle::dtos::change_state::Request { transition_id });
-        (resp.success, resp.message)
+        match node.request_transition_ros(transition_id) {
+            Ok((_mid, final_state)) => (
+                true,
+                format!("transition ok -> {final_state:?}"),
+            ),
+            Err(err) => (false, format!("transition failed: {err}")),
+        }
+    }
+}
+
+fn run_transition_callback(
+    transition: Transition,
+    callbacks: &mut dyn crate::lifecycle::LifecycleCallbacks,
+) -> CallbackResult {
+    match transition {
+        Transition::Configure => callbacks.on_configure(),
+        Transition::Activate => callbacks.on_activate(),
+        Transition::Deactivate => callbacks.on_deactivate(),
+        Transition::Cleanup => callbacks.on_cleanup(),
+        Transition::Shutdown => callbacks.on_shutdown(),
+    }
+}
+
+fn spawn_transition_task<F>(task: F)
+where
+    F: FnOnce() + Send + 'static,
+{
+    if let Ok(handle) = tokio::runtime::Handle::try_current() {
+        handle.spawn_blocking(task);
+    } else {
+        std::thread::spawn(task);
     }
 }
 

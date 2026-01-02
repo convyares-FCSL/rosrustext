@@ -109,6 +109,33 @@ pub fn finish(intermediate: State, via: Transition, result: CallbackResult) -> R
     Ok(next)
 }
 
+/// Finish a transition and apply ErrorProcessing recovery semantics.
+pub fn finish_with_error_handling(
+    intermediate: State,
+    via: Transition,
+    result: CallbackResult,
+    on_error_result: Option<CallbackResult>,
+) -> Result<State> {
+    let final_state = finish(intermediate, via, result)?;
+
+    if final_state == State::ErrorProcessing {
+        let on_error_result = on_error_result.ok_or_else(|| {
+            CoreError::warn()
+                .domain(crate::error::Domain::Lifecycle)
+                .kind(crate::error::ErrorKind::InvalidState)
+                .msg("on_error result missing for ErrorProcessing")
+                .build()
+        })?;
+        return Ok(match on_error_result {
+            CallbackResult::Success => State::Unconfigured,
+            CallbackResult::Failure => State::Finalized,
+            CallbackResult::Error => State::Finalized,
+        });
+    }
+
+    Ok(final_state)
+}
+
 /// Drive a full lifecycle transition and expose intermediate state for introspection.
 ///
 /// Returns:
@@ -135,19 +162,12 @@ pub fn drive(
         Transition::Shutdown => callbacks.on_shutdown(),
     };
 
-    // Apply implicit ON_* transition
-    let final_state = finish(intermediate, via, result)?;
-
-    // ErrorProcessing recovery (ROS2 diagram: success -> unconfigured, failure -> finalized)
-    let final_state = if final_state == State::ErrorProcessing {
-        match callbacks.on_error() {
-            CallbackResult::Success => State::Unconfigured,
-            CallbackResult::Failure => State::Finalized,
-            CallbackResult::Error => State::Finalized, // defensive: treat as failure
-        }
+    let on_error_result = if result == CallbackResult::Error {
+        Some(callbacks.on_error())
     } else {
-        final_state
+        None
     };
+    let final_state = finish_with_error_handling(intermediate, via, result, on_error_result)?;
 
     Ok((intermediate, final_state))
 }
@@ -280,6 +300,29 @@ mod tests {
             on_error: CallbackResult::Failure,
         };
         let (_mid, end) = drive(State::Unconfigured, Transition::Configure, &mut cb).unwrap();
+        assert_eq!(end, State::Finalized);
+    }
+
+    #[test]
+    fn finish_with_error_handling_maps_on_error_result() {
+        let intermediate = begin(State::Unconfigured, Transition::Configure).unwrap();
+
+        let end = finish_with_error_handling(
+            intermediate,
+            Transition::Configure,
+            CallbackResult::Error,
+            Some(CallbackResult::Success),
+        )
+        .unwrap();
+        assert_eq!(end, State::Unconfigured);
+
+        let end = finish_with_error_handling(
+            intermediate,
+            Transition::Configure,
+            CallbackResult::Error,
+            Some(CallbackResult::Failure),
+        )
+        .unwrap();
         assert_eq!(end, State::Finalized);
     }
 

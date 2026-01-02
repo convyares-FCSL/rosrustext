@@ -23,7 +23,8 @@ use rosrustext_roslibrust::lifecycle::{
 use utils::{
     backend_path, frontend_service, lock_state, log_core_error, ros_state, ros_transition_description,
     transport_error, Config, BACKEND_NAMESPACE, SERVICE_CHANGE_STATE, SERVICE_GET_AVAILABLE_STATES,
-    SERVICE_GET_AVAILABLE_TRANSITIONS, SERVICE_GET_STATE, TOPIC_BOND, TOPIC_TRANSITION_EVENT,
+    SERVICE_GET_AVAILABLE_TRANSITIONS, SERVICE_GET_STATE, SERVICE_GET_TRANSITION_GRAPH, TOPIC_BOND,
+    TOPIC_TRANSITION_EVENT,
 };
 
 use bond::Status as BondStatus;
@@ -32,6 +33,9 @@ use lifecycle_msgs::{
     GetAvailableStatesRequest, GetAvailableStatesResponse, GetAvailableTransitions,
     GetAvailableTransitionsRequest, GetAvailableTransitionsResponse, GetState, GetStateRequest,
     GetStateResponse, TransitionEvent as RosTransitionEvent,
+};
+use rosrustext_interfaces::{
+    GetTransitionGraph, GetTransitionGraphRequest, GetTransitionGraphResponse,
 };
 use std_msgs::Header as StdHeader;
 
@@ -120,6 +124,12 @@ impl BondAgent {
     }
 }
 
+fn set_bond_active(agent: &Option<Arc<BondAgent>>, enable: bool) {
+    if let Some(agent) = agent {
+        agent.set_active(enable);
+    }
+}
+
 impl Backend {
     fn new(ros: ClientHandle, target_node: &str) -> Self {
         Self {
@@ -155,7 +165,7 @@ fn now_time() -> builtin_interfaces::Time {
 }
 
 fn bond_active_for_state(state: CoreState) -> bool {
-    !matches!(state, CoreState::Unconfigured | CoreState::Finalized)
+    matches!(state, CoreState::Active)
 }
 
 fn update_state_from_event(
@@ -205,22 +215,27 @@ async fn main() -> CoreResult<()> {
     let pending_goal_state = Arc::new(Mutex::new(None));
     let event_map: Arc<Mutex<HashMap<u8, EventInfo>>> = Arc::new(Mutex::new(HashMap::new()));
 
-    let bond_heartbeat_period = Duration::from_secs_f32(1.0);
-    let bond_heartbeat_timeout = Duration::from_secs_f32(4.0);
-    let bond_topic = TOPIC_BOND.to_string();
-    let bond_pub = Arc::new(
-        ros_server
-            .advertise::<BondStatus>(&bond_topic)
-            .await
-            .map_err(|err| transport_error("advertise bond status", err))?,
-    );
-    let bond_agent = Arc::new(BondAgent::new(
-        bond_pub,
-        config.target_node.clone(),
-        bond_heartbeat_period,
-        bond_heartbeat_timeout,
-    ));
-    bond_agent.clone().spawn();
+    let bond_agent = if config.bond_enabled {
+        let bond_heartbeat_period = Duration::from_secs_f32(1.0);
+        let bond_heartbeat_timeout = Duration::from_secs_f32(4.0);
+        let bond_topic = TOPIC_BOND.to_string();
+        let bond_pub = Arc::new(
+            ros_server
+                .advertise::<BondStatus>(&bond_topic)
+                .await
+                .map_err(|err| transport_error("advertise bond status", err))?,
+        );
+        let agent = Arc::new(BondAgent::new(
+            bond_pub,
+            config.target_node.clone(),
+            bond_heartbeat_period,
+            bond_heartbeat_timeout,
+        ));
+        agent.clone().spawn();
+        Some(agent)
+    } else {
+        None
+    };
 
     let change_state_srv = frontend_service(&config.target_node, SERVICE_CHANGE_STATE);
     let get_state_srv = frontend_service(&config.target_node, SERVICE_GET_STATE);
@@ -228,6 +243,8 @@ async fn main() -> CoreResult<()> {
         frontend_service(&config.target_node, SERVICE_GET_AVAILABLE_STATES);
     let get_available_transitions_srv =
         frontend_service(&config.target_node, SERVICE_GET_AVAILABLE_TRANSITIONS);
+    let get_transition_graph_srv =
+        frontend_service(&config.target_node, SERVICE_GET_TRANSITION_GRAPH);
 
     info!(
         "proxy started node_name={} target=/{}/ bridge={} backend_ns=/{}/{}",
@@ -245,7 +262,7 @@ async fn main() -> CoreResult<()> {
     let state_for_change = Arc::clone(&lifecycle_state);
     let pending_goal_for_change = Arc::clone(&pending_goal_state);
     let event_map_change = Arc::clone(&event_map);
-    let bond_for_change = Arc::clone(&bond_agent);
+    let bond_for_change = bond_agent.clone();
     let _change_handle = ros_server.advertise_service::<ChangeState, _>(
         &change_state_srv,
         move |req: ChangeStateRequest| {
@@ -262,7 +279,21 @@ async fn main() -> CoreResult<()> {
                     return Ok(ChangeStateResponse { success: false });
                 }
             };
-            let start_state = *guard;
+            let start_state = match *guard {
+                CoreState::Configuring
+                | CoreState::CleaningUp
+                | CoreState::Activating
+                | CoreState::Deactivating
+                | CoreState::ShuttingDown
+                | CoreState::ErrorProcessing => {
+                    if let Ok(goal_guard) = pending_goal_for_change.lock() {
+                        goal_guard.unwrap_or(*guard)
+                    } else {
+                        *guard
+                    }
+                }
+                _ => *guard,
+            };
             let transition = match transition_from_ros_id(req.transition.id)
                 .or_else(|| transition_from_label(&req.transition.label))
             {
@@ -295,7 +326,7 @@ async fn main() -> CoreResult<()> {
                 }
             };
             *guard = intermediate_state;
-            bond_for_change.set_active(bond_active_for_state(intermediate_state));
+            set_bond_active(&bond_for_change, bond_active_for_state(intermediate_state));
             drop(guard);
 
             let expected_goal_state = match goal_state_for_transition(start_state, transition) {
@@ -329,6 +360,7 @@ async fn main() -> CoreResult<()> {
             };
 
             let backend = Arc::clone(&backend_change);
+            let bond_for_backend_error = bond_for_change.clone();
             tokio::spawn(async move {
                 match backend.call_change_state(req).await {
                     Ok(resp) => {
@@ -344,6 +376,7 @@ async fn main() -> CoreResult<()> {
                     }
                     Err(err) => {
                         log_core_error(transport_error("backend change_state call failed", err));
+                        set_bond_active(&bond_for_backend_error, false);
                     }
                 }
             });
@@ -351,7 +384,7 @@ async fn main() -> CoreResult<()> {
             let state_for_timeout = Arc::clone(&state_for_change);
             let pending_goal_for_timeout = Arc::clone(&pending_goal_for_change);
             let event_map = Arc::clone(&event_map_change);
-            let bond_for_timeout = Arc::clone(&bond_for_change);
+            let bond_for_timeout = bond_for_change.clone();
             tokio::spawn(async move {
                 tokio::time::sleep(change_state_timeout).await;
                 let snapshot = match event_map.lock() {
@@ -376,7 +409,7 @@ async fn main() -> CoreResult<()> {
                         if *guard == intermediate_state {
                             *guard = start_state;
                         }
-                        bond_for_timeout.set_active(bond_active_for_state(*guard));
+                        set_bond_active(&bond_for_timeout, false);
                     }
                     if let Ok(mut guard) = pending_goal_for_timeout.lock() {
                         *guard = None;
@@ -467,6 +500,36 @@ async fn main() -> CoreResult<()> {
         .await
         .map_err(|err| transport_error("advertise get_available_transitions", err))?;
 
+    let _get_transition_graph_handle = ros_server
+        .advertise_service::<GetTransitionGraph, _>(
+            &get_transition_graph_srv,
+            move |req: GetTransitionGraphRequest| {
+                info!("get_transition_graph request");
+                let _ = req;
+                let graph = rosrustext_core::lifecycle::transition_graph().map_err(|err| {
+                    log_core_error(err.clone());
+                    err
+                })?;
+                let states: Vec<_> = graph.states.into_iter().map(ros_state).collect();
+                let transitions = graph
+                    .transitions
+                    .into_iter()
+                    .map(|edge| {
+                        ros_transition_description(edge.start, edge.transition)
+                            .inspect_err(|err| log_core_error(err.clone()))
+                    })
+                    .collect::<CoreResult<Vec<_>>>()?;
+                info!(
+                    "get_transition_graph response states={} transitions={}",
+                    states.len(),
+                    transitions.len()
+                );
+                Ok(GetTransitionGraphResponse { states, transitions })
+            },
+        )
+        .await
+        .map_err(|err| transport_error("advertise get_transition_graph", err))?;
+
     let transition_event_topic = frontend_service(&config.target_node, TOPIC_TRANSITION_EVENT);
     let transition_pub = Arc::new(
         ros_server
@@ -483,7 +546,7 @@ async fn main() -> CoreResult<()> {
     let state_events = Arc::clone(&lifecycle_state);
     let event_map_updates = Arc::clone(&event_map);
     let pending_goal_updates = Arc::clone(&pending_goal_state);
-    let bond_updates = Arc::clone(&bond_agent);
+    let bond_updates = bond_agent.clone();
     tokio::spawn(async move {
         loop {
             let msg = backend_event_sub.next().await;
@@ -497,7 +560,7 @@ async fn main() -> CoreResult<()> {
                 );
             }
             match update_state_from_event(&state_events, &msg) {
-                Ok(next_state) => bond_updates.set_active(bond_active_for_state(next_state)),
+                Ok(next_state) => set_bond_active(&bond_updates, bond_active_for_state(next_state)),
                 Err(err) => log_core_error(err),
             }
             if let Ok(mut guard) = pending_goal_updates.lock() {
@@ -518,7 +581,7 @@ async fn main() -> CoreResult<()> {
                 .msgf(format_args!("ctrl-c handler failed: {err}"))
                 .build()
         })?;
-    bond_agent.set_active(false);
+    set_bond_active(&bond_agent, false);
     info!("shutdown");
     Ok(())
 }

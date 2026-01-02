@@ -44,6 +44,7 @@ where
         publisher.publish(&msg).await.map_err(|e| {
             CoreError::warn()
                 .domain(Domain::Transport)
+                .kind(ErrorKind::Transport)
                 .msgf(format_args!("transition event publish failed: {e}"))
                 .build()
         })?;

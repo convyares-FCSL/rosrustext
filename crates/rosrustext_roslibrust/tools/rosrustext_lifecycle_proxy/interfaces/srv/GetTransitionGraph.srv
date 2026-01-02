@@ -1,0 +1,5 @@
+# Empty request.
+---
+# Full lifecycle states and valid transition edges.
+lifecycle_msgs/State[] states
+lifecycle_msgs/TransitionDescription[] transitions

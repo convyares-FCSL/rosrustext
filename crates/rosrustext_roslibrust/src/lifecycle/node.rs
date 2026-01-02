@@ -5,13 +5,15 @@ use rosrustext_core::lifecycle::{ActivationGate, LifecycleCallbacks, State};
 
 /// Internal API (wrapper facing).
 #[cfg(any(test, feature = "roslibrust"))]
-use super::dtos::{change_state, get_available_states, get_available_transitions, get_state};
+use super::dtos::{
+    change_state, get_available_states, get_available_transitions, get_state, get_transition_graph,
+};
 #[cfg(any(test, feature = "roslibrust"))]
-use rosrustext_core::lifecycle::{available_transitions, drive};
+use rosrustext_core::lifecycle::{available_transitions, drive, transition_graph};
 #[cfg(any(test, feature = "roslibrust"))]
 use rosrustext_core::lifecycle::ALL_STATES;
 #[cfg(any(test, feature = "roslibrust"))]
-use crate::lifecycle::{shutdown_ros_id_for_state, transition_from_ros_id};
+use crate::lifecycle::{ros_state_id, ros_transition_id, shutdown_ros_id_for_state, transition_from_ros_id};
 #[cfg(test)]
 use crate::lifecycle::ros_ids;
 
@@ -33,7 +35,7 @@ pub struct LifecycleNode {
 
     // Used by drive() when applying transitions.
     #[cfg_attr(not(any(test, feature = "roslibrust")), allow(dead_code))]
-    callbacks: Box<dyn LifecycleCallbacks + Send>,
+    callbacks: Option<Box<dyn LifecycleCallbacks + Send>>,
 
     // Wrapper-side `/transition_event` equivalent.
     //
@@ -41,6 +43,14 @@ pub struct LifecycleNode {
     // - lifecycle transitions never block on a slow transport publisher
     // - lagging receivers drop old events rather than stalling the node
     transition_events: tokio::sync::broadcast::Sender<TransitionEvent>,
+}
+
+pub(crate) struct TransitionWork {
+    pub(crate) start_state: State,
+    pub(crate) intermediate_state: State,
+    pub(crate) transition: rosrustext_core::lifecycle::Transition,
+    pub(crate) ros_transition_id: u8,
+    pub(crate) callbacks: Box<dyn LifecycleCallbacks + Send>,
 }
 
 /// Public API (library user facing).
@@ -66,7 +76,7 @@ impl LifecycleNode {
             name,
             state: State::Unconfigured,
             gate: Arc::new(ActivationGate::new()),
-            callbacks,
+            callbacks: Some(callbacks),
             transition_events,
         })
     }
@@ -111,7 +121,14 @@ impl LifecycleNode {
 
         let current = self.state;
 
-        let (intermediate, final_state) = drive(current, transition, self.callbacks.as_mut())?;
+        let callbacks = self.callbacks.as_mut().ok_or_else(|| {
+            CoreError::warn()
+                .domain(Domain::Lifecycle)
+                .kind(ErrorKind::InvalidState)
+                .msg("lifecycle transition already in progress")
+                .build()
+        })?;
+        let (intermediate, final_state) = drive(current, transition, callbacks.as_mut())?;
 
         // Apply activation policy
         match (current, final_state) {
@@ -132,6 +149,74 @@ impl LifecycleNode {
         });
 
         Ok((intermediate, final_state))
+    }
+
+    pub(crate) fn begin_transition_ros(&mut self, ros_transition_id: u8) -> Result<TransitionWork> {
+        let transition = transition_from_ros_id(ros_transition_id).ok_or_else(|| {
+            CoreError::warn()
+                .domain(Domain::Lifecycle)
+                .kind(ErrorKind::InvalidArgument)
+                .msg("unsupported ROS lifecycle transition id")
+                .build()
+        })?;
+
+        if self.callbacks.is_none() {
+            return Err(
+                CoreError::warn()
+                    .domain(Domain::Lifecycle)
+                    .kind(ErrorKind::InvalidState)
+                    .msg("lifecycle transition already in progress")
+                    .build(),
+            );
+        }
+
+        let start_state = self.state;
+        let intermediate_state = rosrustext_core::lifecycle::begin(start_state, transition)?;
+        self.state = intermediate_state;
+
+        let callbacks = self.callbacks.take().expect("callbacks checked");
+
+        Ok(TransitionWork {
+            start_state,
+            intermediate_state,
+            transition,
+            ros_transition_id,
+            callbacks,
+        })
+    }
+
+    pub(crate) fn complete_transition_ros(
+        &mut self,
+        work: TransitionWork,
+        final_state: State,
+    ) -> Result<(State, State)> {
+        // Apply activation policy
+        match (work.start_state, final_state) {
+            (_, State::Active) => self.gate.activate(),   // entering Active => gate on
+            (State::Active, _) => self.gate.deactivate(), // leaving Active => gate off
+            _ => {}
+        }
+
+        self.state = final_state;
+        self.callbacks = Some(work.callbacks);
+
+        let _ = self.transition_events.send(TransitionEvent {
+            transition_id: work.ros_transition_id,
+            start_state: work.start_state,
+            goal_state: final_state,
+        });
+
+        Ok((work.intermediate_state, final_state))
+    }
+
+    pub(crate) fn abort_transition_ros(&mut self, work: TransitionWork) {
+        match work.start_state {
+            State::Active => self.gate.activate(),
+            _ => self.gate.deactivate(),
+        }
+
+        self.state = work.start_state;
+        self.callbacks = Some(work.callbacks);
     }
 
     /// Internal handler for lifecycle `ChangeState` service.
@@ -186,6 +271,48 @@ impl LifecycleNode {
             .collect();
 
         get_available_states::Response { states }
+    }
+
+    /// Internal handler for lifecycle `GetTransitionGraph` service.
+    pub(crate) fn handle_get_transition_graph(
+        &self,
+        _req: get_transition_graph::Request,
+    ) -> Result<get_transition_graph::Response> {
+        let graph = transition_graph()?;
+
+        let states = graph
+            .states
+            .into_iter()
+            .map(|state| get_transition_graph::State {
+                id: ros_state_id(state),
+                label: state.label().to_string(),
+            })
+            .collect();
+
+        let transitions = graph
+            .transitions
+            .into_iter()
+            .map(|edge| {
+                let id = ros_transition_id(edge.start, edge.transition)
+                    .unwrap_or(edge.transition.id());
+                get_transition_graph::TransitionDescription {
+                    transition: get_transition_graph::Transition {
+                        id,
+                        label: edge.transition.label().to_string(),
+                    },
+                    start_state: get_transition_graph::State {
+                        id: ros_state_id(edge.start),
+                        label: edge.start.label().to_string(),
+                    },
+                    goal_state: get_transition_graph::State {
+                        id: ros_state_id(edge.goal),
+                        label: edge.goal.label().to_string(),
+                    },
+                }
+            })
+            .collect();
+
+        Ok(get_transition_graph::Response { states, transitions })
     }
 
     /// Internal helper: get the correct ROS shutdown ID for the current state.
@@ -284,6 +411,25 @@ mod tests {
         assert!(resp.states.iter().any(|s| s.label == "Deactivating"));
         assert!(resp.states.iter().any(|s| s.label == "ShuttingDown"));
         assert!(resp.states.iter().any(|s| s.label == "ErrorProcessing"));
+    }
+
+    #[test]
+    fn get_transition_graph_reports_edges() {
+        let node = LifecycleNode::new("test_node", Box::new(OkCallbacks)).unwrap();
+
+        let resp = node
+            .handle_get_transition_graph(crate::lifecycle::dtos::get_transition_graph::Request)
+            .unwrap();
+
+        assert!(resp.states.iter().any(|s| s.label == "Unconfigured"));
+        assert!(resp.states.iter().any(|s| s.label == "Active"));
+        assert!(resp.states.iter().any(|s| s.label == "ErrorProcessing"));
+
+        assert!(resp.transitions.iter().any(|t| {
+            t.transition.label == "configure"
+                && t.start_state.label == "Unconfigured"
+                && t.goal_state.label == "Inactive"
+        }));
     }
 
     #[test]

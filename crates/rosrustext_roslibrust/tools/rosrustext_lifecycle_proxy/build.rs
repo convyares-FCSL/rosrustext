@@ -4,13 +4,40 @@ use std::path::PathBuf;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rerun-if-env-changed=AMENT_PREFIX_PATH");
 
-    let packages = ["lifecycle_msgs", "bond", "std_msgs"];
+    let packages = ["lifecycle_msgs", "bond", "std_msgs", "rosrustext_interfaces"];
     let mut search_paths = Vec::new();
 
-    let local_override = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("ros_msgs");
-    let use_local_bond = local_override.join("bond").join("package.xml").is_file();
+    let local_override = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("interfaces");
+    let local_bond = local_override.join("bond");
+    let use_local_bond = local_bond.join("package.xml").is_file();
     if local_override.is_dir() {
         search_paths.push(local_override);
+    }
+    if use_local_bond {
+        search_paths.push(local_bond);
+    }
+
+    if let Ok(path) = std::env::var("ROSRUSTEXT_INTERFACES_PATH") {
+        let candidate = PathBuf::from(path);
+        if candidate.join("package.xml").is_file() && !search_paths.contains(&candidate) {
+            search_paths.push(candidate.clone());
+        }
+        let candidate_bond = candidate.join("bond");
+        if candidate_bond.join("package.xml").is_file() && !search_paths.contains(&candidate_bond)
+        {
+            search_paths.push(candidate_bond);
+        }
+    } else {
+        let repo_interfaces = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("interfaces");
+        if repo_interfaces.join("package.xml").is_file()
+            && !search_paths.contains(&repo_interfaces)
+        {
+            search_paths.push(repo_interfaces.clone());
+        }
+        let repo_bond = repo_interfaces.join("bond");
+        if repo_bond.join("package.xml").is_file() && !search_paths.contains(&repo_bond) {
+            search_paths.push(repo_bond);
+        }
     }
 
     if let Some(prefixes) = std::env::var_os("AMENT_PREFIX_PATH") {

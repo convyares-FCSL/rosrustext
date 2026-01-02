@@ -134,6 +134,7 @@ Lifecycle-aware roslibrust nodes expose **backend** endpoints under a private na
 - `/<target>/_rosrustext/get_state`
 - `/<target>/_rosrustext/get_available_states`
 - `/<target>/_rosrustext/get_available_transitions`
+- `/<target>/_rosrustext/get_transition_graph`
 - `/<target>/_rosrustext/transition_event`
 
 The Rust proxy tool bridges those to standard ROS 2 lifecycle endpoints so
@@ -143,6 +144,7 @@ The Rust proxy tool bridges those to standard ROS 2 lifecycle endpoints so
 - `/<target>/get_state`
 - `/<target>/get_available_states`
 - `/<target>/get_available_transitions`
+- `/<target>/get_transition_graph`
 - `/<target>/transition_event`
 
 Tool crate:
@@ -158,6 +160,9 @@ From the repo root:
 - `./scripts/run_backend.sh`
 - `./scripts/run_proxy.sh`
 - `./scripts/run_lifecycle_test.sh`
+- `./scripts/run_transition_graph_test.sh`
+- `./scripts/test_transition_graph.sh`
+- `./scripts/test_python_lifecycle_manager.sh` (rosbridge + backend + proxy + rclpy manager)
 - `./scripts/run_all.sh` (single-terminal end-to-end run)
 - `./scripts/test_nav2_bond.sh` (rosbridge + backend + proxy + nav2 manager)
 

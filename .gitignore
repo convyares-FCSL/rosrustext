@@ -12,6 +12,7 @@ build/
 install/
 log/
 logs/
+scripts/logs/
 
 # =========================
 # Rust (Cargo)

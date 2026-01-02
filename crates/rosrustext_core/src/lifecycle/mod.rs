@@ -11,13 +11,15 @@
 
 mod gate;
 mod engine;
+mod graph;
 mod state;
 mod transition;
 
 pub use gate::ActivationGate;
 pub use engine::{
-    available_transitions, begin, drive, finish, CallbackResult, LifecycleCallbacks,
-    goal_state_for_transition,
+    available_transitions, begin, drive, finish, finish_with_error_handling, CallbackResult,
+    LifecycleCallbacks, goal_state_for_transition,
 };
+pub use graph::{transition_graph, TransitionEdge, TransitionGraph};
 pub use state::{State, ALL_STATES};
 pub use transition::Transition;

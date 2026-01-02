@@ -25,6 +25,9 @@ Required topic:
 Additional (Nav2 compatibility):
 - `/bond` — `bond/msg/Status` (heartbeat for lifecycle manager liveness checks)
 
+rosrustext introspection (custom, Jazzy-compatible):
+- `get_transition_graph` — `rosrustext_interfaces/srv/GetTransitionGraph`
+
 ## Required Semantics (Normative)
 
 - State model:
@@ -47,6 +50,12 @@ Additional (Nav2 compatibility):
   - Must not block state machine progression.
   - Ordering preserved per node instance.
 
+- Error policy:
+  - Invalid requests must not mutate state.
+  - CallbackResult::Error triggers ErrorProcessing; on_error Success -> Unconfigured,
+    Failure/Error -> Finalized (fatal policy in core).
+  - Error kinds: InvalidArgument, InvalidState, InvalidTransition, NotSupported, Timeout, Transport.
+
 ## Edge-case compatibility traps
 
 - Shutdown requested while transitioning
@@ -62,8 +71,17 @@ Blocking inside a ChangeState handler can starve the websocket executor and make
 avoid waiting inside the callback; update local state optimistically to the
 transitional state, treat `transition_event` as the source of truth for final
 state, and log/revert if the expected event is not observed. To preserve
-rclcpp-style observables, `get_state` may report the expected goal primary
-state immediately after a successful ChangeState response.
+rclcpp-style observables, `get_state` may report either the transitional state
+or the expected goal primary state while a transition is pending.
+
+## CLI note (informative)
+
+`ros2 interface show` renders nested types by reading `.msg` sources. If an
+overlay workspace shadows `lifecycle_msgs` with a broken `.msg` symlink, ros2cli
+falls back to the `.idl` file and the rosidl_adapter parser fails. This is an
+environment issue, not a lifecycle spec mismatch. Fix by restoring the
+`lifecycle_msgs` `.msg` in the overlay or by preferring `/opt/ros/jazzy` for
+ros2cli rendering.
 
 ## Nav2 bond compatibility (informative)
 
@@ -71,7 +89,7 @@ Nav2 lifecycle manager uses `bond` to ensure managed nodes remain alive after
 transitions. Adapters that want Nav2 parity should provide a minimal bond
 heartbeat on `/bond` using `bond/msg/Status`, with `id` matching the managed
 node name and a unique `instance_id`. Heartbeats should run while the node is
-managed (configured/active) and stop on shutdown or finalization.
+active and stop on deactivation, shutdown, or finalization.
 
 ## Definition of Done
 
