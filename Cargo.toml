@@ -18,6 +18,6 @@ members = [
     "crates/rosrustext_core",
     "crates/rosrustext_roslibrust",
     "crates/rosrustext_roslibrust/tools/rosrustext_lifecycle_proxy",
-    # "crates/rosrustext_ros2_rust", # later
+    "crates/rosrustext_ros2_rust",
 ]
 resolver = "2"
