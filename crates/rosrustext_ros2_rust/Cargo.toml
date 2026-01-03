@@ -1,0 +1,22 @@
+[package]
+name = "rosrustext_ros2_rust"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "ros2_rust adapter for ros2_rust lifecycle semantics"
+
+[dependencies]
+# Core semantics (transport-agnostic)
+rosrustext_core = { path = "../rosrustext_core" }
+
+# ROS2 Rust client library (Jazzy dev_ws proven path/patch setup)
+rclrs = "0.6"
+
+# Errors + logging (match style you already use elsewhere)
+thiserror = "2.0"
+tracing = "0.1"
+
+[dev-dependencies]
+# keep empty for now; slice-1 validation lives in rosrustext_dev_ws
