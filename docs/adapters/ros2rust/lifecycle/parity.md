@@ -7,14 +7,16 @@ Canonical reference:
 - `docs/spec/lifecycle.md` (normative)
 
 This file answers:
-> “Given the ROS2 lifecycle spec, what will the ros2_rust adapter provide?”
+> “Given the ROS2 lifecycle spec, what does the ros2_rust adapter provide?”
 
 ---
 
 ## Dependency source
 
-- Primary: `rclrs` (crate) from crates.io (repo `ros2-rust/ros2_rust` is a multi-crate workspace)
-- Pin to git only if Jazzy-required APIs/bugs force it (document exact commit if so)
+- Primary: `rclrs` (crate) from crates.io  
+  (upstream repository: `ros2-rust/ros2_rust`, multi-crate workspace)
+- Pin to git **only** if Jazzy-required APIs or correctness bugs force it  
+  (exact commit must be documented)
 
 ---
 
@@ -22,15 +24,18 @@ This file answers:
 
 | Service | ROS Type | Status | Notes |
 |------|---------|--------|------|
-| `/<node>/change_state` | `lifecycle_msgs/srv/ChangeState` | 🚧 Planned | Native service server. **Must complete transition before responding** (no semantic drift). |
+| `/<node>/change_state` | `lifecycle_msgs/srv/ChangeState` | 🚧 Planned | Native service server. **May complete transition before responding** (allowed by spec). Must not block executor thread. |
 | `/<node>/get_state` | `lifecycle_msgs/srv/GetState` | 🚧 Planned | Native service server. |
 | `/<node>/get_available_transitions` | `lifecycle_msgs/srv/GetAvailableTransitions` | 🚧 Planned | Native service server. |
 | `/<node>/get_available_states` | `lifecycle_msgs/srv/GetAvailableStates` | 🚧 Planned | Native service server. |
-| `/<node>/get_transition_graph` | `rosrustext_interfaces/srv/GetTransitionGraph` | 🚧 Planned | Custom introspection service (same as roslibrust adapter). |
+| `/<node>/get_transition_graph` | `lifecycle_msgs/srv/GetTransitionGraph` | 🚧 Planned | **Standard lifecycle introspection service**. Must match rclcpp observables. |
 | `create` | internal | ❌ Omitted | Wrapper-only concern. |
 | `destroy` | internal | ❌ Omitted | Wrapper-only concern. |
 
-**Design constraint:** `change_state` must not block the executor thread, yet must not respond early. This is the key transport/executor constraint to prove in `rclrs`.
+**Design constraint:**  
+`change_state` must not block the executor thread. Whether the transition
+completes before the response is returned is **adapter-defined**, as permitted
+by the ROS2 service contract (“able to initiate transition”).
 
 ---
 
@@ -38,8 +43,8 @@ This file answers:
 
 | Topic | ROS Type | Status | Notes |
 |------|---------|--------|------|
-| `/<node>/transition_event` | `lifecycle_msgs/msg/TransitionEvent` | 🚧 Planned | Native publisher. Must match rclcpp observables (IDs/labels/timestamps). |
-| `/bond` | `bond/msg/Status` | 🚧 Planned | Native publisher for Nav2 bond compatibility (same heartbeat strategy as roslibrust adapter). |
+| `/<node>/transition_event` | `lifecycle_msgs/msg/TransitionEvent` | 🚧 Planned | Native publisher. Must emit **one event per transition attempt**, success or failure. |
+| `/bond` | `bond/msg/Status` | 🚧 Planned | Native publisher for Nav2 lifecycle manager compatibility. |
 
 ---
 
@@ -47,61 +52,68 @@ This file answers:
 
 | Aspect | Status | Notes |
 |------|--------|------|
-| Busy-state rejection | ✅ Core-provided | Adapter must surface correct failure response (no transport-specific “retry later” semantics). |
+| Busy-state rejection | ✅ Core-provided | Adapter must reject deterministically without mutating state. |
 | Activation gating | ✅ Core-provided | `ActivationGate` owned by lifecycle node. |
-| Publish suppression when inactive | ✅ Core-provided | Silent drop (as documented in roslibrust parity). |
-| Timer suppression when inactive | ✅ Core-provided | Must be implementable without background spinner; either cancel timers on deactivate or guard in callback. |
-| Shutdown from any state | ✅ Core-provided | Best-effort path to Finalized (adapter must wire to app shutdown model). |
-| ErrorProcessing handling | ✅ Core-provided | No semantic drift; adapter must map to ROS-visible outcomes + transition events. |
-| Fatal error policy | ✅ Core-provided | Adapter just reports/forces Finalized per core policy. |
+| Publish suppression when inactive | ✅ Core-provided | Silent drop (no per-message warnings). |
+| Timer suppression when inactive | ✅ Core-provided | Implemented via cancellation or guarded callbacks. |
+| Shutdown from any state | ✅ Core-provided | Best-effort path to Finalized. |
+| ErrorProcessing handling | ✅ Core-provided | Adapter maps outcomes to ROS-visible transitions + events. |
+| Fatal error policy | ✅ Core-provided | Adapter enforces Finalized per core policy. |
 
 ---
 
 ## Callback execution model (transport-specific)
 
-The `ros2_rust` adapter is a native `rclrs` node.
+The ros2_rust adapter is a **native `rclrs` node**.
 
-- **Lifecycle callbacks (core):** synchronous hooks (per `rosrustext_core::LifecycleCallbacks`), executed by wrapper logic.
-- **Non-blocking rule:** lifecycle *service handlers* must not block the executor thread.
-- **No adapter-owned spinner:** application owns the spin loop (like “normal C++”).
-- **Implication:** the adapter must support a “transition work off-thread, completion observed in executor context, then respond” pattern **without** requiring Tokio.
+- Lifecycle callbacks (core): synchronous hooks.
+- Service handlers: must **not block the executor thread**.
+- Application owns the executor/spin loop (same model as rclcpp).
+- No adapter-owned background spinner.
 
-> NOTE: The earlier claim “callbacks are strictly async” is incorrect for this project’s core contract and is removed.
+**Implication:**  
+The adapter must support:
+- transition work occurring off-thread or incrementally
+- transition completion observed in executor context
+- service response sent **after** completion *or* after initiation (both allowed)
+
+Tokio is **not required** and should not be assumed.
 
 ---
 
 ## Transport-specific constraints (rclrs)
 
-- **Executor:** application-provided. Adapter must work under typical `rclrs` executor patterns (single-threaded at minimum).
-- **Service response timing:** must prove `rclrs` can respond after transition completion without blocking executor thread.
-- **Naming/remapping:** standard ROS 2 remapping applies automatically.
-- **Discovery:** should work out-of-the-box with `ros2 node list` / `ros2 lifecycle` (no proxy node).
+- Executor: application-provided (single-threaded baseline).
+- Service response timing: must prove deferred response is possible without blocking.
+- Discovery & remapping: standard ROS 2 behavior.
+- CLI compatibility: `ros2 lifecycle`, `ros2 node list`, etc. must work without proxy nodes.
 
 ---
 
 ## Known gaps / risks (must be proven)
 
-- **ChangeState response mechanics:** can we defer response until transition completes without blocking executor thread?
-- **Timer gating semantics:** best native strategy in `rclrs` without hidden background threads.
-- **Bond:** confirm QoS + timing expectations for `nav2_lifecycle_manager` with native publisher.
-- **Parameters:** lifecycle managers sometimes assume parameter presence; confirm whether adapter needs minimal parameter compatibility surface or can omit.
+- Deferred service response correctness in `rclrs`
+- Executor-safe transition completion signaling
+- Timer cancellation vs guarded execution trade-offs
+- Bond QoS + heartbeat timing under Nav2
+- Minimal parameter surface expectations (if any)
 
 ---
 
-## Test layers (same philosophy)
+## Test layers
 
 - Core unit tests (Rust): `cargo test -p rosrustext_core`
 - Adapter integration tests (Rust): `cargo test -p rosrustext_ros2_rust`
-- System tests (ROS CLI + managers): extend `scripts/test/*` with native ros2_rust adapter runs (no proxy)
+- System tests (ROS CLI + managers): reuse scripts with native adapter (no proxy)
 
 ---
 
 ## Definition of Done (ros2_rust lifecycle)
 
-Lifecycle is complete when a Rust node using `rosrustext_ros2_rust` is controllable by:
+Lifecycle parity is complete when a Rust node using `rosrustext_ros2_rust` can be:
 
-- `ros2 lifecycle get/set`
-- Python lifecycle manager
-- `nav2_lifecycle_manager` (bond enabled)
+- Driven by `ros2 lifecycle get/set`
+- Managed by Python lifecycle managers
+- Managed by `nav2_lifecycle_manager` (bond enabled)
 
-…with no semantic drift from `docs/spec/lifecycle.md`, and correct `transition_event` publication.
+…with no semantic drift from `docs/spec/lifecycle.md`.

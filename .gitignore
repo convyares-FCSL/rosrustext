@@ -18,6 +18,7 @@ scripts/logs/
 # Rust (Cargo)
 # =========================
 **/target/
+.cargo/
 Cargo.lock
 
 # =========================
