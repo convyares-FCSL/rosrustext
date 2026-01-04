@@ -8,7 +8,7 @@ ROSBRIDGE_NODE_NAME="${ROSBRIDGE_NODE_NAME#/}"
 ROSBRIDGE_LOG_LEVEL="${ROSBRIDGE_LOG_LEVEL:-warn}"
 BRIDGE_URL="${BRIDGE_URL:-ws://localhost:9090}"
 BRIDGE_PORT="${BRIDGE_PORT:-}"
-ROSRUSTEXT_INTERFACES_PATH="${ROSRUSTEXT_INTERFACES_PATH:-$ROOT_DIR/crates/rosrustext_roslibrust/tools/rosrustext_lifecycle_proxy/interfaces}"
+ROSRUSTEXT_INTERFACES_PATH="${ROSRUSTEXT_INTERFACES_PATH:-$ROOT_DIR/interfaces/rosrustext_interfaces}"
 
 if [[ "$BRIDGE_URL" =~ ^ws://[^:/]+:([0-9]+)$ ]]; then
   if [[ -z "$BRIDGE_PORT" ]]; then

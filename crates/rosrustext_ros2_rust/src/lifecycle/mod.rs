@@ -22,6 +22,10 @@ mod bond_agent;
 #[cfg(feature = "bond")]
 pub use bond_agent::BondAgent;
 
+// Optional custom introspection service type (Jazzy compatibility)
+#[cfg(feature = "transition_graph")]
+pub use rosrustext_interfaces::srv::GetTransitionGraph;
+
 // LifecycleNode (thin wrapper around Arc<rclrs::Node> + gate)
 mod node;
 pub use node::LifecycleNode;

@@ -66,6 +66,7 @@ standard ROS2 lifecycle managers.
 - [x] Verify compatibility with Python lifecycle manager
 - [x] Verify compatibility with C++ lifecycle manager (nav2_lifecycle_manager)
 - [x] Bond heartbeat support for Nav2 lifecycle manager
+- [x] Shared rosrustext_interfaces package (repo + dev_ws) for custom services
 
 ---
 

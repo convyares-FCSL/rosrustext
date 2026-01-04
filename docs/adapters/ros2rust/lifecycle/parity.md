@@ -32,6 +32,12 @@ This file answers:
 | `create` | internal | ❌ Omitted | Wrapper-only concern. |
 | `destroy` | internal | ❌ Omitted | Wrapper-only concern. |
 
+**Custom introspection policy (Jazzy):**  
+`lifecycle_msgs` in Jazzy does not include `GetTransitionGraph`. rosrustext
+provides `rosrustext_interfaces/srv/GetTransitionGraph` **only** behind the
+`transition_graph` feature. Default builds keep the standard Jazzy surface
+and do not require the custom interface package.
+
 **Design constraint:**  
 `change_state` must not block the executor thread. Whether the transition
 completes before the response is returned is **adapter-defined**, as permitted
@@ -163,6 +169,12 @@ This requirement is **part of lifecycle parity** and not an optional convenience
   - Code: `crates/rosrustext_ros2_rust/src/lifecycle/node.rs`,
     `crates/rosrustext_ros2_rust/src/lifecycle/bond_agent.rs`
 
+### Interface package location
+
+- Canonical package: `interfaces/rosrustext_interfaces`
+- dev_ws links it into `rosrustext_dev_ws/src/rosrustext_interfaces`
+  (created by `rosrustext_dev_ws/scripts/source_env.sh`)
+
 ## Transport-specific constraints (rclrs)
 
 - Executor: application-provided (single-threaded baseline).
@@ -197,6 +209,8 @@ This requirement is **part of lifecycle parity** and not an optional convenience
 - Bond QoS + heartbeat timing under Nav2 (manager-level validation)
 - Minimal parameter surface expectations (if any)
 - `get_transition_graph` service (rclrs)
+- `transition_graph` feature exposes the custom service type, but the service
+  is not wired in the adapter yet
 
 ---
 

@@ -6,7 +6,7 @@ BACKEND_DIR="${BACKEND_DIR:-/home/ecm/ros2_rust_ws/ros2_ws/src/hyfleet_ring_rosl
 TARGET_NODE="${TARGET_NODE:-hyfleet_ring_roslibrust}"
 BRIDGE_URL="${BRIDGE_URL:-ws://localhost:9090}"
 
-export ROSRUSTEXT_INTERFACES_PATH="${ROSRUSTEXT_INTERFACES_PATH:-$ROOT_DIR/crates/rosrustext_roslibrust/tools/rosrustext_lifecycle_proxy/interfaces}"
+export ROSRUSTEXT_INTERFACES_PATH="${ROSRUSTEXT_INTERFACES_PATH:-$ROOT_DIR/interfaces/rosrustext_interfaces}"
 
 if [[ ! -d "$BACKEND_DIR" ]]; then
   echo "Backend directory not found: $BACKEND_DIR" >&2

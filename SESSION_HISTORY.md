@@ -256,6 +256,23 @@ with a reproducible smoke test.
 
 ---
 
+## Session 16 – 2026-01-04 – rosrustext_interfaces integration
+- Promoted `rosrustext_interfaces` to a top-level canonical package:
+  - repo path: `interfaces/rosrustext_interfaces`
+  - legacy path preserved via symlink for roslibrust tooling
+- Dev workspace auto-links the interface package in `scripts/source_env.sh`
+  so `colcon build` sees it without manual steps.
+- Added optional `transition_graph` feature to the ros2_rust adapter:
+  - feature gates the `rosrustext_interfaces` dependency
+  - exports the `GetTransitionGraph` service type (service wiring still pending)
+- Added dev_ws Cargo patches for `rosrustext_interfaces` to resolve generated Rust bindings.
+
+Outcome:
+Custom interfaces are shared across adapters with minimal user setup, and
+ros2_rust can opt into the custom service types without breaking default builds.
+
+---
+
 ## Guiding principle
 
 **Model lifecycle truth once, test it in isolation,
