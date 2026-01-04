@@ -193,12 +193,18 @@ This requirement is **part of lifecycle parity** and not an optional convenience
 - `ros2 service call /ros2_rust_lifecycle_gate_minimal/get_state lifecycle_msgs/srv/GetState "{}"`
   - returns `id=2 label='Inactive'` after configure
   - returns `id=3 label='Active'` after activate
-- CLI smoke (dev_ws): `scripts/test_ros2_rust_lifecycle_cli_smoke.sh`
+- CLI smoke: `scripts/test/ros2_rust/lifecycle/test_lifecycle_cli.sh`
 - `ros2 topic echo /ros2_rust_lifecycle_gate_minimal/transition_event lifecycle_msgs/msg/TransitionEvent --once`
-- Bond smoke (dev_ws): `scripts/test_ros2_rust_bond_smoke.sh`
+- Bond smoke: `scripts/test/ros2_rust/lifecycle/test_bond.sh`
   - observes `active=true` after activate
   - observes `active=false` after deactivate
-- Transition graph smoke (dev_ws): `scripts/test_ros2_rust_transition_graph_smoke.sh`
+- Nav2 lifecycle manager smoke: `scripts/test/ros2_rust/lifecycle/test_nav2_lifecycle_manager.sh`
+- Transition graph smoke: `scripts/test/ros2_rust/lifecycle/test_transition_graph.sh`
+- Full suite: `scripts/test/ros2_rust/run_all_tests.sh` (runs all four tests)
+
+Note: Nav2 may log an "incompatible QoS" warning for `/bond` when another
+subscriber with mismatched QoS is present; this is expected and does not
+invalidate the test.
 
 ---
 
@@ -207,7 +213,6 @@ This requirement is **part of lifecycle parity** and not an optional convenience
 - Deferred service response correctness in `rclrs` (long-running transitions)
 - Executor-safe transition completion signaling
 - Timer cancellation vs guarded execution trade-offs
-- Bond QoS + heartbeat timing under Nav2 (manager-level validation)
 - Minimal parameter surface expectations (if any)
 
 ---

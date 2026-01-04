@@ -75,7 +75,7 @@ standard ROS2 lifecycle managers.
 - [x] Slice: GetState service (rclrs)
 - [x] Slice: ChangeState minimal (rclrs) + gating update
 - [x] Slice: available_states/transitions (rclrs)
-- [ ] Slice: GetTransitionGraph service (rclrs)
+- [x] Slice: GetTransitionGraph service (rclrs)
 - [x] Publish transition_event (lifecycle_msgs/msg/TransitionEvent)
 - [x] Bond heartbeat (/bond) behind feature flag with Nav2 QoS
 - [x] Decide adapter ownership boundary for lifecycle-owned services vs app-owned services
@@ -129,6 +129,11 @@ standard ROS2 lifecycle managers.
 - [x] Rust lifecycle proxy tool (rosbridge)
 - [x] Local run scripts (rosbridge/backend/proxy/lifecycle test)
 - [x] Nav2 bond validation script
+- [x] ros2_rust lifecycle CLI smoke script (dev_ws-backed)
+- [x] ros2_rust bond smoke script (dev_ws-backed)
+- [x] ros2_rust Nav2 lifecycle manager smoke script (dev_ws-backed)
+- [x] ros2_rust transition graph smoke script (dev_ws-backed)
+- [x] ros2_rust system smoke suite passes (`scripts/test/ros2_rust/run_all_tests.sh`)
 - [x] Rust integration tests for lifecycle contracts (core + proxy + graph)
 - [x] System test aggregator (`scripts/test/run_all_tests.sh`)
 
