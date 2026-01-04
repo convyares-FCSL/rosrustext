@@ -67,6 +67,18 @@ standard ROS2 lifecycle managers.
 - [x] Verify compatibility with C++ lifecycle manager (nav2_lifecycle_manager)
 - [x] Bond heartbeat support for Nav2 lifecycle manager
 
+---
+
+## Lifecycle – ros2_rust adapter (rclrs)
+
+- [x] Slice: GetState service (rclrs)
+- [x] Slice: ChangeState minimal (rclrs) + gating update
+- [x] Slice: available_states/transitions (rclrs)
+- [ ] Slice: GetTransitionGraph service (rclrs)
+- [ ] Publish transition_event (lifecycle_msgs/msg/TransitionEvent)
+- [ ] Decide adapter ownership boundary for lifecycle-owned services vs app-owned services
+- [ ] Swap adapter-owned state with rosrustext_core machine (remove Mutex<State> later)
+
 ### Error & shutdown policy
 - [x] ErrorProcessing recovery delegated to wrapper
 - [x] Best-effort shutdown path implemented
