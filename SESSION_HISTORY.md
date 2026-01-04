@@ -302,6 +302,18 @@ ros2_rust system smoke coverage is stable and passes end-to-end.
 
 ---
 
+## Session 19 – 2026-01-04 – ChangeState timing contract
+- Added a deterministic ChangeState timing test that injects a small delay and
+  asserts `change_state` returns quickly while state + transition_event converge.
+- Added a test-only delay hook (`ROSRUSTEXT_RCLRS_CHANGE_STATE_DELAY_MS`) to the
+  ros2_rust adapter to validate initiation semantics without blocking.
+- Updated parity docs to document the response-timing contract and add the test.
+
+Outcome:
+Deferred response semantics are now validated and documented.
+
+---
+
 ## Guiding principle
 
 **Model lifecycle truth once, test it in isolation,

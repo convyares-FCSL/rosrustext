@@ -9,6 +9,7 @@
 
 use crate::error::Result;
 use std::sync::{Arc, Mutex};
+use std::thread;
 use std::time::Duration;
 
 use lifecycle_msgs::msg::{
@@ -47,6 +48,13 @@ pub struct LifecycleNode {
 
 // ===== Public API =====
 impl LifecycleNode {
+    fn change_state_delay_ms() -> u64 {
+        std::env::var("ROSRUSTEXT_RCLRS_CHANGE_STATE_DELAY_MS")
+            .ok()
+            .and_then(|val| val.parse::<u64>().ok())
+            .unwrap_or(0)
+    }
+
     /// Preferred constructor: creates the lifecycle node and enables all lifecycle-facing entities.
     pub fn try_new(node: Arc<Node>) -> Result<Self> {
         let ln = Self {
@@ -197,35 +205,79 @@ impl LifecycleNode {
             move |req: lifecycle_msgs::srv::ChangeState_Request| {
                 let transition_id = req.transition.id;
 
-                let mut state_guard = state.lock().expect("state mutex poisoned");
-                let start = *state_guard;
-
+                let delay_ms = Self::change_state_delay_ms();
                 let mut success = false;
 
-                if let Some((goal, label)) = Self::apply_primary_transition(start, transition_id) {
-                    success = true;
-                    *state_guard = goal;
+                if delay_ms == 0 {
+                    let mut state_guard = state.lock().expect("state mutex poisoned");
+                    let start = *state_guard;
 
-                    // gate policy for this slice: only Active => gate on
-                    match goal {
-                        State::Active => gate.activate(),
-                        _ => gate.deactivate(),
-                    }
-
-                    // bond follows "Active means bonded"
-                    #[cfg(feature = "bond")]
-                    if let Some(agent) = bond.lock().expect("bond mutex poisoned").as_ref() {
-                        agent.set_active(goal == State::Active);
-                    }
-
-                    // Emit transition_event if enabled (exactly once per success)
-                    if let Some(pub_) = tev_pub
-                        .lock()
-                        .expect("transition_event_pub mutex poisoned")
-                        .as_ref()
+                    if let Some((goal, label)) =
+                        Self::apply_primary_transition(start, transition_id)
                     {
-                        let evt = Self::make_transition_event(start, goal, transition_id, label);
-                        let _ = pub_.publish(evt);
+                        success = true;
+                        *state_guard = goal;
+
+                        // gate policy for this slice: only Active => gate on
+                        match goal {
+                            State::Active => gate.activate(),
+                            _ => gate.deactivate(),
+                        }
+
+                        // bond follows "Active means bonded"
+                        #[cfg(feature = "bond")]
+                        if let Some(agent) = bond.lock().expect("bond mutex poisoned").as_ref() {
+                            agent.set_active(goal == State::Active);
+                        }
+
+                        // Emit transition_event if enabled (exactly once per success)
+                        if let Some(pub_) = tev_pub
+                            .lock()
+                            .expect("transition_event_pub mutex poisoned")
+                            .as_ref()
+                        {
+                            let evt =
+                                Self::make_transition_event(start, goal, transition_id, label);
+                            let _ = pub_.publish(evt);
+                        }
+                    }
+                } else {
+                    let start = *state.lock().expect("state mutex poisoned");
+                    if let Some((goal, label)) =
+                        Self::apply_primary_transition(start, transition_id)
+                    {
+                        success = true;
+                        let state = Arc::clone(&state);
+                        let gate = Arc::clone(&gate);
+                        let tev_pub = Arc::clone(&tev_pub);
+                        #[cfg(feature = "bond")]
+                        let bond = Arc::clone(&bond);
+                        thread::spawn(move || {
+                            thread::sleep(Duration::from_millis(delay_ms));
+
+                            let mut state_guard = state.lock().expect("state mutex poisoned");
+                            *state_guard = goal;
+
+                            match goal {
+                                State::Active => gate.activate(),
+                                _ => gate.deactivate(),
+                            }
+
+                            #[cfg(feature = "bond")]
+                            if let Some(agent) = bond.lock().expect("bond mutex poisoned").as_ref() {
+                                agent.set_active(goal == State::Active);
+                            }
+
+                            if let Some(pub_) = tev_pub
+                                .lock()
+                                .expect("transition_event_pub mutex poisoned")
+                                .as_ref()
+                            {
+                                let evt =
+                                    Self::make_transition_event(start, goal, transition_id, label);
+                                let _ = pub_.publish(evt);
+                            }
+                        });
                     }
                 }
 
