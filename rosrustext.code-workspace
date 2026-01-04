@@ -1,7 +1,13 @@
 {
   "folders": [
-    { "name": "rosrustext (library)", "path": "/home/ecm/fcsl/rosrustext" },
-    { "name": "rosrustext_dev_ws (colcon)", "path": "/home/ecm/fcsl/rosrustext_dev_ws" }
+    {
+      "name": "rosrustext (library)",
+      "path": "/home/ecm/fcsl/rosrustext"
+    },
+    {
+      "name": "rosrustext_dev_ws (colcon)",
+      "path": "/home/ecm/fcsl/rosrustext_dev_ws"
+    }
   ],
   "settings": {
     "files.exclude": {
@@ -22,6 +28,19 @@
     },
     "rust-analyzer.checkOnSave.command": "clippy",
     "rust-analyzer.cargo.allFeatures": true,
-    "editor.formatOnSave": true
+    "editor.formatOnSave": true,
+    "ROS2.distro": "jazzy",
+    "python.autoComplete.extraPaths": [
+      "/home/ecm/ros2_ws_tutorial/build/my_py_pkg",
+      "/home/ecm/ros2_ws_tutorial/install/my_py_pkg/lib/python3.12/site-packages",
+      "/home/ecm/ros2_ws_tutorial/install/my_interfaces/lib/python3.12/site-packages",
+      "/opt/ros/jazzy/lib/python3.12/site-packages"
+    ],
+    "python.analysis.extraPaths": [
+      "/home/ecm/ros2_ws_tutorial/build/my_py_pkg",
+      "/home/ecm/ros2_ws_tutorial/install/my_py_pkg/lib/python3.12/site-packages",
+      "/home/ecm/ros2_ws_tutorial/install/my_interfaces/lib/python3.12/site-packages",
+      "/opt/ros/jazzy/lib/python3.12/site-packages"
+    ]
   }
 }

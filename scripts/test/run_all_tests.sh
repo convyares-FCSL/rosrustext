@@ -2,17 +2,29 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-ROS2_WS_ROOT="${ROS2_WS_ROOT:-/home/ecm/ros2_rust_ws/ros2_ws}"
+DEFAULT_ROS2_WS_ROOT="$ROOT_DIR/../ros2_rust_ws/ros2_ws"
 
-if [[ -f "/opt/ros/jazzy/setup.bash" ]]; then
-  # shellcheck disable=SC1091
-  source "/opt/ros/jazzy/setup.bash"
+if [[ -z "${ROS2_WS_ROOT:-}" ]]; then
+  if [[ -d "$DEFAULT_ROS2_WS_ROOT" ]]; then
+    ROS2_WS_ROOT="$DEFAULT_ROS2_WS_ROOT"
+  else
+    ROS2_WS_ROOT="/home/ecm/ros2_rust_ws/ros2_ws"
+  fi
 fi
 
-if [[ -f "$ROS2_WS_ROOT/install/setup.bash" ]]; then
-  # shellcheck disable=SC1091
-  source "$ROS2_WS_ROOT/install/setup.bash"
-fi
+source_ros_setup() {
+  local setup_file="$1"
+  if [[ -f "$setup_file" ]]; then
+    # ROS setup scripts are not nounset-safe.
+    set +u
+    # shellcheck disable=SC1091
+    source "$setup_file"
+    set -u
+  fi
+}
+
+source_ros_setup "/opt/ros/jazzy/setup.bash"
+source_ros_setup "$ROS2_WS_ROOT/install/setup.bash"
 
 TESTS=(
   "scripts/test/roslibrust/lifecycle/test_transition_graph.sh"

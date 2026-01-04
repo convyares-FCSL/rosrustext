@@ -19,6 +19,9 @@ use lifecycle_msgs::srv::{ChangeState, GetAvailableStates, GetAvailableTransitio
 use rclrs::{Node, TimerOptions};
 use rosrustext_core::lifecycle::{ActivationGate, State};
 
+#[cfg(feature = "transition_graph")]
+use rosrustext_interfaces::srv::GetTransitionGraph;
+
 #[cfg(feature = "bond")]
 use super::BondAgent;
 use super::{ManagedPublisher, ManagedTimer};
@@ -136,6 +139,8 @@ impl LifecycleNode {
         self.enable_change_state_service()?;
         self.enable_get_available_states_service()?;
         self.enable_get_available_transitions_service()?;
+        #[cfg(feature = "transition_graph")]
+        self.enable_get_transition_graph_service()?;
         self.enable_bond()?;
         Ok(())
     }
@@ -252,6 +257,46 @@ impl LifecycleNode {
 
                 let mut resp = lifecycle_msgs::srv::GetAvailableTransitions_Response::default();
                 resp.available_transitions = transitions;
+                resp
+            },
+        )?;
+
+        self.keep_internal(svc);
+        Ok(())
+    }
+
+    /// Enable rosrustext_interfaces/srv/GetTransitionGraph at "/<node>/get_transition_graph".
+    #[cfg(feature = "transition_graph")]
+    pub(crate) fn enable_get_transition_graph_service(&self) -> Result<()> {
+        let service_name = format!("/{}/get_transition_graph", self.node.name());
+
+        let svc = self.node.create_service::<GetTransitionGraph, _>(
+            &service_name,
+            move |_req: rosrustext_interfaces::srv::GetTransitionGraph_Request| {
+                let states = vec![
+                    Self::ros_state_msg(State::Unconfigured),
+                    Self::ros_state_msg(State::Inactive),
+                    Self::ros_state_msg(State::Active),
+                    Self::ros_state_msg(State::Finalized),
+                ];
+
+                let mut transitions = Vec::new();
+                for start in [
+                    State::Unconfigured,
+                    State::Inactive,
+                    State::Active,
+                    State::Finalized,
+                ] {
+                    transitions.extend(
+                        Self::available_primary_transitions(start)
+                            .into_iter()
+                            .map(|(id, goal, label)| Self::td(start, goal, id, label)),
+                    );
+                }
+
+                let mut resp = rosrustext_interfaces::srv::GetTransitionGraph_Response::default();
+                resp.states = states;
+                resp.transitions = transitions;
                 resp
             },
         )?;

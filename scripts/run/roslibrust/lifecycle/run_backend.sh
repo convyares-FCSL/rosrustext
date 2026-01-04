@@ -2,7 +2,17 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
-BACKEND_DIR="${BACKEND_DIR:-/home/ecm/ros2_rust_ws/ros2_ws/src/hyfleet_ring_roslibrust}"
+DEFAULT_ROS2_WS_ROOT="$ROOT_DIR/../ros2_rust_ws/ros2_ws"
+
+if [[ -z "${ROS2_WS_ROOT:-}" ]]; then
+  if [[ -d "$DEFAULT_ROS2_WS_ROOT" ]]; then
+    ROS2_WS_ROOT="$DEFAULT_ROS2_WS_ROOT"
+  else
+    ROS2_WS_ROOT="/home/ecm/ros2_rust_ws/ros2_ws"
+  fi
+fi
+
+BACKEND_DIR="${BACKEND_DIR:-$ROS2_WS_ROOT/src/hyfleet_ring_roslibrust}"
 TARGET_NODE="${TARGET_NODE:-hyfleet_ring_roslibrust}"
 BRIDGE_URL="${BRIDGE_URL:-ws://localhost:9090}"
 
