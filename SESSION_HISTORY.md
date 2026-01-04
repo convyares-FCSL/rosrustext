@@ -211,6 +211,30 @@ for full system validation.
 
 ---
 
+## Session 14 – 2026-01-04 – ros2_rust lifecycle services (rclrs)
+- Implemented minimal lifecycle services in `rosrustext_ros2_rust`:
+  - `/<node>/get_state`
+  - `/<node>/change_state`
+  - `/<node>/get_available_states`
+  - `/<node>/get_available_transitions`
+- Verified ActivationGate gating behavior in the dev workspace example.
+- Fixed rclrs 0.6 service callback signature requirement:
+  - must use concrete `Request`/`Response` types in the closure signature
+  - `ServiceIDL` Request/Response usage caused `ros2 service call` to hang
+- CLI validation (Jazzy):
+  - `ros2 lifecycle set /ros2_rust_lifecycle_gate_minimal configure` → “Transitioning successful”
+  - `ros2 lifecycle set /ros2_rust_lifecycle_gate_minimal activate` → “Transitioning successful”
+  - `ros2 service call /ros2_rust_lifecycle_gate_minimal/get_state lifecycle_msgs/srv/GetState "{}"`
+    returns `id=2 label='Inactive'` after configure and `id=3 label='Active'` after activate
+- Known caveats: no `transition_event` publisher yet, no `get_transition_graph` service yet,
+  minimal synchronous transition mapping.
+
+Outcome:
+ros2_rust lifecycle services are CLI-compatible in Jazzy with a minimal mapping,
+and the callback signature pitfall is documented.
+
+---
+
 ## Guiding principle
 
 **Model lifecycle truth once, test it in isolation,

@@ -24,10 +24,10 @@ This file answers:
 
 | Service | ROS Type | Status | Notes |
 |------|---------|--------|------|
-| `/<node>/change_state` | `lifecycle_msgs/srv/ChangeState` | 🚧 Planned | Native service server. **May complete transition before responding** (allowed by spec). Must not block executor thread. |
-| `/<node>/get_state` | `lifecycle_msgs/srv/GetState` | 🚧 Planned | Native service server. |
-| `/<node>/get_available_transitions` | `lifecycle_msgs/srv/GetAvailableTransitions` | 🚧 Planned | Native service server. |
-| `/<node>/get_available_states` | `lifecycle_msgs/srv/GetAvailableStates` | 🚧 Planned | Native service server. |
+| `/<node>/change_state` | `lifecycle_msgs/srv/ChangeState` | ✅ Implemented (Slice-3 / WIP mapping) | Native service server. Minimal synchronous state update; transition events not emitted yet. |
+| `/<node>/get_state` | `lifecycle_msgs/srv/GetState` | ✅ Implemented (Slice-3 / WIP mapping) | Native service server. |
+| `/<node>/get_available_transitions` | `lifecycle_msgs/srv/GetAvailableTransitions` | ✅ Implemented (Slice-3 / WIP mapping) | Native service server. |
+| `/<node>/get_available_states` | `lifecycle_msgs/srv/GetAvailableStates` | ✅ Implemented (Slice-3 / WIP mapping) | Native service server. |
 | `/<node>/get_transition_graph` | `lifecycle_msgs/srv/GetTransitionGraph` | 🚧 Planned | **Standard lifecycle introspection service**. Must match rclcpp observables. |
 | `create` | internal | ❌ Omitted | Wrapper-only concern. |
 | `destroy` | internal | ❌ Omitted | Wrapper-only concern. |
@@ -81,12 +81,69 @@ Tokio is **not required** and should not be assumed.
 
 ---
 
+## Lifecycle node ownership & lifetime model (normative)
+
+The ros2_rust lifecycle adapter **must mirror rclcpp/rclpy lifecycle ownership semantics**.
+
+### Required behavior
+
+* A `LifecycleNode` is the **primary node abstraction** exposed to application code.
+* Lifecycle-internal ROS entities are **owned by the lifecycle node**, not the application:
+
+  * Lifecycle services (`get_state`, `change_state`, introspection)
+  * Transition event publisher
+  * Bond publisher / heartbeat timer
+* Application code **must not** be required to:
+
+  * store lifecycle service handles
+  * keep lifecycle timers alive
+  * reason about lifecycle service lifetimes
+
+### Rationale
+
+This matches ROS 2 expectations:
+
+* In `rclcpp_lifecycle::LifecycleNode`, lifecycle services exist *because the node exists*.
+* Applications do not “hold” lifecycle services — they *use* the lifecycle node.
+* Losing lifecycle services due to dropped handles is **not acceptable**.
+
+### Rust-specific constraint
+
+Because `rclrs` uses RAII lifetimes:
+
+* The adapter **must internally retain** service / timer / publisher handles
+* This retention is an **implementation detail**, invisible to application code
+
+### Consequence for adapter API
+
+* Lifecycle service registration functions:
+
+  * **do not return handles**
+  * return `Result<()>`
+* Application-facing node structs should only retain:
+
+  * the `LifecycleNode`
+  * application-owned publishers / timers / subscriptions
+
+This requirement is **part of lifecycle parity** and not an optional convenience.
+
 ## Transport-specific constraints (rclrs)
 
 - Executor: application-provided (single-threaded baseline).
 - Service response timing: must prove deferred response is possible without blocking.
 - Discovery & remapping: standard ROS 2 behavior.
 - CLI compatibility: `ros2 lifecycle`, `ros2 node list`, etc. must work without proxy nodes.
+- rclrs 0.6 service callbacks must use **concrete** Request/Response signatures:
+  - `move |req: <pkg>::srv::<Service>_Request| -> <Service>_Response`
+  - Using `ServiceIDL` Request/Response types caused `ros2 service call` to hang.
+
+## Validation (Jazzy)
+
+- `ros2 lifecycle set /ros2_rust_lifecycle_gate_minimal configure` → “Transitioning successful”
+- `ros2 lifecycle set /ros2_rust_lifecycle_gate_minimal activate` → “Transitioning successful”
+- `ros2 service call /ros2_rust_lifecycle_gate_minimal/get_state lifecycle_msgs/srv/GetState "{}"`
+  - returns `id=2 label='Inactive'` after configure
+  - returns `id=3 label='Active'` after activate
 
 ---
 
@@ -97,6 +154,8 @@ Tokio is **not required** and should not be assumed.
 - Timer cancellation vs guarded execution trade-offs
 - Bond QoS + heartbeat timing under Nav2
 - Minimal parameter surface expectations (if any)
+- No `transition_event` publisher yet
+- No `get_transition_graph` service yet
 
 ---
 
