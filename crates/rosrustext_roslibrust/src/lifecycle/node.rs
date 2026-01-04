@@ -228,6 +228,7 @@ impl LifecycleNode {
     }
 
     /// Internal handler for lifecycle `ChangeState` service.
+    #[allow(dead_code)]
     pub(crate) fn handle_change_state(
         &mut self,
         req: change_state::Request,

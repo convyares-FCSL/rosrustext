@@ -28,7 +28,7 @@ This file answers:
 | `/<node>/get_state` | `lifecycle_msgs/srv/GetState` | ✅ Implemented (Slice-3 / WIP mapping) | Native service server. |
 | `/<node>/get_available_transitions` | `lifecycle_msgs/srv/GetAvailableTransitions` | ✅ Implemented (Slice-3 / WIP mapping) | Native service server. |
 | `/<node>/get_available_states` | `lifecycle_msgs/srv/GetAvailableStates` | ✅ Implemented (Slice-3 / WIP mapping) | Native service server. |
-| `/<node>/get_transition_graph` | `rosrustext_interfaces/srv/GetTransitionGraph` | 🚧 Planned (optional) | Custom introspection service (Jazzy lacks `lifecycle_msgs/GetTransitionGraph`); implement behind feature flag. |
+| `/<node>/get_transition_graph` | `rosrustext_interfaces/srv/GetTransitionGraph` | ✅ Implemented (feature `transition_graph`) | Custom introspection service (Jazzy lacks `lifecycle_msgs/GetTransitionGraph`). |
 | `create` | internal | ❌ Omitted | Wrapper-only concern. |
 | `destroy` | internal | ❌ Omitted | Wrapper-only concern. |
 
@@ -198,19 +198,17 @@ This requirement is **part of lifecycle parity** and not an optional convenience
 - Bond smoke (dev_ws): `scripts/test_ros2_rust_bond_smoke.sh`
   - observes `active=true` after activate
   - observes `active=false` after deactivate
+- Transition graph smoke (dev_ws): `scripts/test_ros2_rust_transition_graph_smoke.sh`
 
 ---
 
 ## Known gaps / risks (must be proven)
 
-- Deferred service response correctness in `rclrs`
+- Deferred service response correctness in `rclrs` (long-running transitions)
 - Executor-safe transition completion signaling
 - Timer cancellation vs guarded execution trade-offs
 - Bond QoS + heartbeat timing under Nav2 (manager-level validation)
 - Minimal parameter surface expectations (if any)
-- `get_transition_graph` service (rclrs)
-- `transition_graph` feature exposes the custom service type, but the service
-  is not wired in the adapter yet
 
 ---
 
