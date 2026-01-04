@@ -13,6 +13,12 @@ install/
 log/
 logs/
 scripts/logs/
+ros2_rust_ws/
+**/install/
+**/build/
+**/log/
+target/
+
 
 # =========================
 # Rust (Cargo)
