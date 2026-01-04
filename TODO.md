@@ -75,8 +75,10 @@ standard ROS2 lifecycle managers.
 - [x] Slice: ChangeState minimal (rclrs) + gating update
 - [x] Slice: available_states/transitions (rclrs)
 - [ ] Slice: GetTransitionGraph service (rclrs)
-- [ ] Publish transition_event (lifecycle_msgs/msg/TransitionEvent)
-- [ ] Decide adapter ownership boundary for lifecycle-owned services vs app-owned services
+- [x] Publish transition_event (lifecycle_msgs/msg/TransitionEvent)
+- [x] Bond heartbeat (/bond) behind feature flag with Nav2 QoS
+- [x] Decide adapter ownership boundary for lifecycle-owned services vs app-owned services
+- [ ] Validate deferred ChangeState response semantics in rclrs (non-blocking transitions)
 - [ ] Swap adapter-owned state with rosrustext_core machine (remove Mutex<State> later)
 
 ### Error & shutdown policy

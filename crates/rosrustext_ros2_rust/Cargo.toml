@@ -14,10 +14,15 @@ rosrustext_core = { path = "../rosrustext_core" }
 # ROS2 Rust client library (Jazzy dev_ws proven path/patch setup)
 rclrs = "0.6"
 lifecycle_msgs = "*"
+bond = { version = "*", optional = true }
 
 # Errors + logging (match style you already use elsewhere)
 thiserror = "2.0"
 tracing = "0.1"
+
+[features]
+default = []
+bond = ["dep:bond"]
 
 [dev-dependencies]
 # keep empty for now; slice-1 validation lives in rosrustext_dev_ws

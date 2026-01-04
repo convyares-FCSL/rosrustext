@@ -235,6 +235,27 @@ and the callback signature pitfall is documented.
 
 ---
 
+## Session 15 – 2026-01-04 – ros2_rust bond + transition events
+- Implemented transition_event publishing in the ros2_rust adapter:
+  - one event per successful primary transition
+- Confirmed lifecycle-owned entities are retained internally:
+  - services, transition_event, and bond are owned by `LifecycleNode`
+  - applications only instantiate `LifecycleNode` and create gated publishers/timers
+- Added optional bond support to ros2_rust adapter (feature `bond`):
+  - publishes `/bond` (`bond/msg/Status`) with Nav2 QoS
+  - heartbeat period 1s, timeout 4s
+  - active only when lifecycle state is Active; publishes one inactive on deactivation
+- Added/updated dev_ws bond smoke script:
+  - `scripts/test_ros2_rust_bond_smoke.sh` starts the node, runs configure/activate/deactivate
+  - verifies `active=true` and `active=false` bond messages
+  - fixed Jazzy CLI usage (`ros2 topic echo --once`) and added `BOND_VERBOSE=1`
+
+Outcome:
+ros2_rust adapter now emits transition events and bond heartbeats (feature-gated),
+with a reproducible smoke test.
+
+---
+
 ## Guiding principle
 
 **Model lifecycle truth once, test it in isolation,

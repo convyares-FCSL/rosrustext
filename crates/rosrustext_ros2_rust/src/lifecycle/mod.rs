@@ -16,6 +16,12 @@ pub use managed_publisher::ManagedPublisher;
 mod managed_timer;
 pub use managed_timer::ManagedTimer;
 
+// Bond agent (feature-gated)
+#[cfg(feature = "bond")]
+mod bond_agent;
+#[cfg(feature = "bond")]
+pub use bond_agent::BondAgent;
+
 // LifecycleNode (thin wrapper around Arc<rclrs::Node> + gate)
 mod node;
 pub use node::LifecycleNode;

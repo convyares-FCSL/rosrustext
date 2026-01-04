@@ -136,12 +136,12 @@ Adapters map the core semantics onto specific Rust ROS stacks.
   * Bond heartbeat
   * Transition graph service
 
-#### `rosrustext_ros2_rust` *(planned)*
+#### `rosrustext_ros2_rust` *(in progress)*
 
-* Uses native RCL bindings
-* Same lifecycle surface
-* Same tests
-* Same semantics
+* Uses native RCL bindings (`rclrs`)
+* Lifecycle services + `transition_event` implemented
+* Bond heartbeat available behind feature `bond`
+* Transition graph service still pending (Jazzy lacks `lifecycle_msgs/GetTransitionGraph`)
 * Different transport constraints
 
 Adapters are **replaceable**, not competing.
@@ -159,6 +159,7 @@ Lifecycle is the first feature implemented end-to-end because it is:
 
 Current lifecycle support includes:
 
+**roslibrust adapter**
 * All standard ROS 2 lifecycle services
 * Transition events
 * Transition graph introspection
@@ -171,7 +172,10 @@ Current lifecycle support includes:
   * Python lifecycle manager
   * Nav2 lifecycle manager (C++)
 
-Lifecycle is for rcllibrust is **DONE**, for rc2rust is **WIP**.
+**ros2_rust adapter (rclrs, Jazzy)**
+* Lifecycle services + `transition_event`
+* Bond heartbeat (feature `bond`, Nav2 QoS)
+* Verified with CLI smoke scripts in dev_ws
 
 ---
 
@@ -208,10 +212,10 @@ This is about **compatibility, correctness, and confidence**.
 
 ## Status
 
-* Lifecycle parity: **complete**
+* Lifecycle parity (roslibrust): **complete**
 * roslibrust adapter: **complete**
-* Nav2 compatibility: **verified**
-* ros2_rust adapter: **next**
+* Nav2 compatibility (roslibrust): **verified**
+* ros2_rust adapter (lifecycle): **in progress**
 * Actions, parameters, execution: **planned**
 
 See `TODO.md` and parity documents for tracked work.

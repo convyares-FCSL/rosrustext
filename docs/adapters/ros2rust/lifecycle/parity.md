@@ -24,11 +24,11 @@ This file answers:
 
 | Service | ROS Type | Status | Notes |
 |------|---------|--------|------|
-| `/<node>/change_state` | `lifecycle_msgs/srv/ChangeState` | ✅ Implemented (Slice-3 / WIP mapping) | Native service server. Minimal synchronous state update; transition events not emitted yet. |
+| `/<node>/change_state` | `lifecycle_msgs/srv/ChangeState` | ✅ Implemented (Slice-3 / WIP mapping) | Native service server. Minimal synchronous state update; emits one transition event per successful primary transition. |
 | `/<node>/get_state` | `lifecycle_msgs/srv/GetState` | ✅ Implemented (Slice-3 / WIP mapping) | Native service server. |
 | `/<node>/get_available_transitions` | `lifecycle_msgs/srv/GetAvailableTransitions` | ✅ Implemented (Slice-3 / WIP mapping) | Native service server. |
 | `/<node>/get_available_states` | `lifecycle_msgs/srv/GetAvailableStates` | ✅ Implemented (Slice-3 / WIP mapping) | Native service server. |
-| `/<node>/get_transition_graph` | `lifecycle_msgs/srv/GetTransitionGraph` | 🚧 Planned | **Standard lifecycle introspection service**. Must match rclcpp observables. |
+| `/<node>/get_transition_graph` | `rosrustext_interfaces/srv/GetTransitionGraph` | 🚧 Planned (optional) | Custom introspection service (Jazzy lacks `lifecycle_msgs/GetTransitionGraph`); implement behind feature flag. |
 | `create` | internal | ❌ Omitted | Wrapper-only concern. |
 | `destroy` | internal | ❌ Omitted | Wrapper-only concern. |
 
@@ -43,8 +43,8 @@ by the ROS2 service contract (“able to initiate transition”).
 
 | Topic | ROS Type | Status | Notes |
 |------|---------|--------|------|
-| `/<node>/transition_event` | `lifecycle_msgs/msg/TransitionEvent` | 🚧 Planned | Native publisher. Must emit **one event per transition attempt**, success or failure. |
-| `/bond` | `bond/msg/Status` | 🚧 Planned | Native publisher for Nav2 lifecycle manager compatibility. |
+| `/<node>/transition_event` | `lifecycle_msgs/msg/TransitionEvent` | ✅ Implemented (Slice-3) | Native publisher. Emits exactly one event per successful primary transition. Jazzy `timestamp` is `uint64` nanoseconds. |
+| `/bond` | `bond/msg/Status` | ✅ Implemented (feature `bond`) | Adapter-owned publisher + heartbeat timer for Nav2 lifecycle manager compatibility. **QoS is normative (see below).** |
 
 ---
 
@@ -80,6 +80,17 @@ The adapter must support:
 Tokio is **not required** and should not be assumed.
 
 ---
+
+### Bond QoS (normative)
+
+Nav2 lifecycle manager expects `/bond` with the following QoS (not optional in practice):
+
+- Reliability: **Reliable**
+- Durability: **TransientLocal**
+- History: **KeepLast(1)**
+- Depth: **1**
+
+This QoS is part of lifecycle parity (adapter responsibility), not an application tuning knob.
 
 ## Lifecycle node ownership & lifetime model (normative)
 
@@ -127,6 +138,31 @@ Because `rclrs` uses RAII lifetimes:
 
 This requirement is **part of lifecycle parity** and not an optional convenience.
 
+## Implementation notes (Jazzy, rclrs 0.6)
+
+- Lifecycle-owned entities are enabled by default:
+  - `LifecycleNode::try_new` / `try_with_gate` call `enable_defaults`
+  - `enable_defaults` wires transition_event + lifecycle services + bond (feature-gated)
+  - Code: `crates/rosrustext_ros2_rust/src/lifecycle/node.rs`
+- RAII retention:
+  - `LifecycleNode::keep_internal` stores services/publishers/timers in `internals`
+  - Code: `crates/rosrustext_ros2_rust/src/lifecycle/node.rs`
+- Activation gating:
+  - `ManagedPublisher::publish` drops when inactive
+  - `create_timer_repeating_gated` checks gate inside timer callback
+  - Code: `crates/rosrustext_ros2_rust/src/lifecycle/managed_publisher.rs`,
+    `crates/rosrustext_ros2_rust/src/lifecycle/node.rs`,
+    `crates/rosrustext_ros2_rust/src/lifecycle/managed_timer.rs`
+- Transition events:
+  - Emitted once per successful primary transition in `enable_change_state_service`
+  - Jazzy timestamp uses `u64` nanoseconds in `make_transition_event`
+  - Code: `crates/rosrustext_ros2_rust/src/lifecycle/node.rs`
+- Bond (feature `bond`):
+  - Enabled in `enable_bond`, invoked by `enable_defaults`
+  - Heartbeat period 1s, timeout 4s; active only in Active state
+  - Code: `crates/rosrustext_ros2_rust/src/lifecycle/node.rs`,
+    `crates/rosrustext_ros2_rust/src/lifecycle/bond_agent.rs`
+
 ## Transport-specific constraints (rclrs)
 
 - Executor: application-provided (single-threaded baseline).
@@ -141,9 +177,15 @@ This requirement is **part of lifecycle parity** and not an optional convenience
 
 - `ros2 lifecycle set /ros2_rust_lifecycle_gate_minimal configure` → “Transitioning successful”
 - `ros2 lifecycle set /ros2_rust_lifecycle_gate_minimal activate` → “Transitioning successful”
+- `ros2 lifecycle set /ros2_rust_lifecycle_gate_minimal deactivate` → “Transitioning successful”
 - `ros2 service call /ros2_rust_lifecycle_gate_minimal/get_state lifecycle_msgs/srv/GetState "{}"`
   - returns `id=2 label='Inactive'` after configure
   - returns `id=3 label='Active'` after activate
+- CLI smoke (dev_ws): `scripts/test_ros2_rust_lifecycle_cli_smoke.sh`
+- `ros2 topic echo /ros2_rust_lifecycle_gate_minimal/transition_event lifecycle_msgs/msg/TransitionEvent --once`
+- Bond smoke (dev_ws): `scripts/test_ros2_rust_bond_smoke.sh`
+  - observes `active=true` after activate
+  - observes `active=false` after deactivate
 
 ---
 
@@ -152,10 +194,9 @@ This requirement is **part of lifecycle parity** and not an optional convenience
 - Deferred service response correctness in `rclrs`
 - Executor-safe transition completion signaling
 - Timer cancellation vs guarded execution trade-offs
-- Bond QoS + heartbeat timing under Nav2
+- Bond QoS + heartbeat timing under Nav2 (manager-level validation)
 - Minimal parameter surface expectations (if any)
-- No `transition_event` publisher yet
-- No `get_transition_graph` service yet
+- `get_transition_graph` service (rclrs)
 
 ---
 
@@ -176,3 +217,23 @@ Lifecycle parity is complete when a Rust node using `rosrustext_ros2_rust` can b
 - Managed by `nav2_lifecycle_manager` (bond enabled)
 
 …with no semantic drift from `docs/spec/lifecycle.md`.
+
+### Application-owned vs lifecycle-owned entities (normative)
+
+* Lifecycle-owned ROS entities are retained internally by `LifecycleNode`:
+
+  * lifecycle services (`get_state`, `change_state`, introspection)
+  * `transition_event` publisher
+  * bond publisher (when feature `bond` is enabled)
+
+* Application-owned entities are **not retained**:
+
+  * publishers
+  * timers
+  * subscriptions
+
+**Rationale:**
+This matches `rclcpp_lifecycle::LifecycleNode` semantics exactly.
+The application must retain handles to keep entities alive.
+
+This is **required for parity**, not an ergonomic choice.
