@@ -3,7 +3,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use lifecycle_msgs::msg::{
     State as RosState, Transition as RosTransition, TransitionDescription, TransitionEvent,
 };
-use rosrustext_core::lifecycle::{CallbackResult, State, Transition};
+use rosrustext_core::lifecycle::{goal_state_for_transition, CallbackResult, State, Transition};
 
 pub(crate) fn change_state_delay_ms() -> u64 {
     std::env::var("ROSRUSTEXT_RCLRS_CHANGE_STATE_DELAY_MS")
@@ -12,23 +12,85 @@ pub(crate) fn change_state_delay_ms() -> u64 {
         .unwrap_or(0)
 }
 
-pub(crate) fn transition_from_ros_id(start: State, transition_id: u8) -> Option<Transition> {
-    match transition_id {
-        RosTransition::TRANSITION_CONFIGURE => Some(Transition::Configure),
-        RosTransition::TRANSITION_CLEANUP => Some(Transition::Cleanup),
-        RosTransition::TRANSITION_ACTIVATE => Some(Transition::Activate),
-        RosTransition::TRANSITION_DEACTIVATE => Some(Transition::Deactivate),
-        RosTransition::TRANSITION_UNCONFIGURED_SHUTDOWN if start == State::Unconfigured => {
-            Some(Transition::Shutdown)
-        }
-        RosTransition::TRANSITION_INACTIVE_SHUTDOWN if start == State::Inactive => {
-            Some(Transition::Shutdown)
-        }
-        RosTransition::TRANSITION_ACTIVE_SHUTDOWN if start == State::Active => {
-            Some(Transition::Shutdown)
-        }
-        _ => None,
-    }
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub(crate) struct TransitionSpec {
+    pub(crate) start: State,
+    pub(crate) transition: Transition,
+    pub(crate) transition_id: u8,
+    pub(crate) label: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub(crate) struct TransitionEntry {
+    pub(crate) spec: TransitionSpec,
+    pub(crate) goal: State,
+}
+
+const TRANSITION_SPECS: &[TransitionSpec] = &[
+    TransitionSpec {
+        start: State::Unconfigured,
+        transition: Transition::Configure,
+        transition_id: RosTransition::TRANSITION_CONFIGURE,
+        label: Transition::Configure.label(),
+    },
+    TransitionSpec {
+        start: State::Unconfigured,
+        transition: Transition::Shutdown,
+        transition_id: RosTransition::TRANSITION_UNCONFIGURED_SHUTDOWN,
+        label: Transition::Shutdown.label(),
+    },
+    TransitionSpec {
+        start: State::Inactive,
+        transition: Transition::Activate,
+        transition_id: RosTransition::TRANSITION_ACTIVATE,
+        label: Transition::Activate.label(),
+    },
+    TransitionSpec {
+        start: State::Inactive,
+        transition: Transition::Cleanup,
+        transition_id: RosTransition::TRANSITION_CLEANUP,
+        label: Transition::Cleanup.label(),
+    },
+    TransitionSpec {
+        start: State::Inactive,
+        transition: Transition::Shutdown,
+        transition_id: RosTransition::TRANSITION_INACTIVE_SHUTDOWN,
+        label: Transition::Shutdown.label(),
+    },
+    TransitionSpec {
+        start: State::Active,
+        transition: Transition::Deactivate,
+        transition_id: RosTransition::TRANSITION_DEACTIVATE,
+        label: Transition::Deactivate.label(),
+    },
+    TransitionSpec {
+        start: State::Active,
+        transition: Transition::Shutdown,
+        transition_id: RosTransition::TRANSITION_ACTIVE_SHUTDOWN,
+        label: Transition::Shutdown.label(),
+    },
+];
+
+pub(crate) fn transition_spec_for_ros_id(
+    start: State,
+    transition_id: u8,
+) -> Option<TransitionSpec> {
+    TRANSITION_SPECS
+        .iter()
+        .copied()
+        .find(|spec| spec.start == start && spec.transition_id == transition_id)
+}
+
+pub(crate) fn transition_entries_for_start(start: State) -> Vec<TransitionEntry> {
+    TRANSITION_SPECS
+        .iter()
+        .copied()
+        .filter(|spec| spec.start == start)
+        .filter_map(|spec| {
+            let goal = goal_state_for_transition(spec.start, spec.transition).ok()?;
+            Some(TransitionEntry { spec, goal })
+        })
+        .collect()
 }
 
 fn transition_env_suffix(transition: Transition) -> &'static str {
@@ -76,47 +138,16 @@ pub(crate) fn on_error_result_for(transition: Transition) -> CallbackResult {
 
 /// Get available primary transitions from given start State.
 pub(crate) fn available_primary_transitions(start: State) -> Vec<(u8, State, &'static str)> {
-    match start {
-        State::Unconfigured => vec![
+    transition_entries_for_start(start)
+        .into_iter()
+        .map(|entry| {
             (
-                RosTransition::TRANSITION_CONFIGURE,
-                State::Inactive,
-                "configure",
-            ),
-            (
-                RosTransition::TRANSITION_UNCONFIGURED_SHUTDOWN,
-                State::Finalized,
-                "shutdown",
-            ),
-        ],
-        State::Inactive => vec![
-            (RosTransition::TRANSITION_ACTIVATE, State::Active, "activate"),
-            (
-                RosTransition::TRANSITION_CLEANUP,
-                State::Unconfigured,
-                "cleanup",
-            ),
-            (
-                RosTransition::TRANSITION_INACTIVE_SHUTDOWN,
-                State::Finalized,
-                "shutdown",
-            ),
-        ],
-        State::Active => vec![
-            (
-                RosTransition::TRANSITION_DEACTIVATE,
-                State::Inactive,
-                "deactivate",
-            ),
-            (
-                RosTransition::TRANSITION_ACTIVE_SHUTDOWN,
-                State::Finalized,
-                "shutdown",
-            ),
-        ],
-        State::Finalized => vec![],
-        _ => vec![],
-    }
+                entry.spec.transition_id,
+                entry.goal,
+                entry.spec.label,
+            )
+        })
+        .collect()
 }
 
 /// Map primary State to ROS lifecycle_msgs/msg/State id.
@@ -182,4 +213,21 @@ pub(crate) fn make_transition_event(
     ev.start_state = ros_state_msg(start);
     ev.goal_state = ros_state_msg(goal);
     ev
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn transition_table_matches_core_goals() {
+        for start in [State::Unconfigured, State::Inactive, State::Active] {
+            for entry in transition_entries_for_start(start) {
+                let expected = goal_state_for_transition(entry.spec.start, entry.spec.transition)
+                    .expect("goal_state_for_transition failed");
+                assert_eq!(entry.goal, expected);
+                assert_eq!(entry.spec.label, entry.spec.transition.label());
+            }
+        }
+    }
 }

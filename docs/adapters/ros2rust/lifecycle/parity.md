@@ -51,26 +51,19 @@ by the ROS2 service contract (“able to initiate transition”).
 
 | Topic                      | ROS Type                             | Status                         | Notes                                                                                                                                                                                                               |
 | -------------------------- | ------------------------------------ | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/<node>/transition_event` | `lifecycle_msgs/msg/TransitionEvent` | ✅ Implemented (Slice-3)        | Native publisher. Emits **one event per successful primary transition**. Failed or rejected transitions do not currently emit events (intentional deviation; see below). Jazzy `timestamp` is `uint64` nanoseconds. |
+| `/<node>/transition_event` | `lifecycle_msgs/msg/TransitionEvent` | ✅ Implemented (Slice-3)        | Native publisher. Emits **one event per accepted transition attempt** (success/failure/error). Busy rejections do not emit events. Jazzy `timestamp` is `uint64` nanoseconds.                                     |
 | `/bond`                    | `bond/msg/Status`                    | ✅ Implemented (feature `bond`) | Adapter-owned publisher + heartbeat timer for Nav2 lifecycle manager compatibility. **QoS is normative (see below).**                                                                                               |
 
 ---
 
-### TransitionEvent deviation (documented)
+### TransitionEvent behavior (documented)
 
-Canonical ROS2 semantics require:
-
-> **One TransitionEvent per transition attempt**, regardless of outcome.
+Canonical ROS2 semantics require one TransitionEvent per transition attempt.
 
 Current behavior (ros2_rust, Jazzy):
 
-* TransitionEvent is emitted **only for successful primary transitions**
-* Invalid or rejected transitions do **not** emit events
-* This matches the current `roslibrust` adapter behavior
-
-This deviation is **intentional and temporary**.
-Once the adapter delegates state handling fully to `rosrustext_core`,
-failed transitions will also emit events with appropriate outcomes.
+* TransitionEvent is emitted for **accepted** attempts (success/failure/error).
+* Busy/invalid requests are rejected and do **not** emit events.
 
 ---
 
@@ -85,6 +78,10 @@ failed transitions will also emit events with appropriate outcomes.
 | Shutdown from any state           | ✅ Core-provided | Best-effort path to Finalized.                                                  |
 | ErrorProcessing handling          | ✅ Core-provided | Adapter maps outcomes to ROS-visible transitions + events (future full wiring). |
 | Fatal error policy                | ✅ Core-provided | Adapter enforces Finalized per core policy.                                     |
+
+**Transition table single source of truth:**
+The adapter derives validation, `get_available_transitions`, and `get_transition_graph`
+from one canonical transition table in `crates/rosrustext_ros2_rust/src/lifecycle/utils.rs`.
 
 ---
 
@@ -159,7 +156,7 @@ The following items are required to reach full parity with
   * `LifecycleNode::from_node(Arc<Node>)`
 * Explicit API forwarding (no `Deref`)
 * Replace adapter-owned `Mutex<State>` with `rosrustext_core` state machine
-* Emit TransitionEvent for failed / rejected transitions
+* Emit TransitionEvent for rejected transitions (busy / invalid)
 
 These are tracked in `TODO.md` and are **not blockers** for current Jazzy
 lifecycle manager compatibility.

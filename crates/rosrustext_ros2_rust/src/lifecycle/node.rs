@@ -208,8 +208,8 @@ impl LifecycleNode {
                 }
 
                 let start = state_guard.state;
-                let transition = match utils::transition_from_ros_id(start, transition_id) {
-                    Some(transition) => transition,
+                let spec = match utils::transition_spec_for_ros_id(start, transition_id) {
+                    Some(spec) => spec,
                     None => {
                         let mut resp = lifecycle_msgs::srv::ChangeState_Response::default();
                         resp.success = false;
@@ -217,7 +217,7 @@ impl LifecycleNode {
                     }
                 };
 
-                let intermediate = match begin(start, transition) {
+                let intermediate = match begin(start, spec.transition) {
                     Ok(intermediate) => intermediate,
                     Err(_) => {
                         let mut resp = lifecycle_msgs::srv::ChangeState_Response::default();
@@ -226,8 +226,13 @@ impl LifecycleNode {
                     }
                 };
 
-                let label = transition.label();
-                let in_flight = TransitionInFlight { start, intermediate, transition, transition_id, label };
+                let in_flight = TransitionInFlight {
+                    start,
+                    intermediate,
+                    transition: spec.transition,
+                    transition_id,
+                    label: spec.label,
+                };
                 state_guard.in_flight = Some(in_flight);
                 drop(state_guard);
 
@@ -272,9 +277,16 @@ impl LifecycleNode {
                 let transitions: Vec<TransitionDescription> = if guard.in_flight.is_some() {
                     Vec::new()
                 } else {
-                    utils::available_primary_transitions(guard.state)
+                    utils::transition_entries_for_start(guard.state)
                         .into_iter()
-                        .map(|(id, goal, label)| utils::transition_description(guard.state, goal, id, label))
+                        .map(|entry| {
+                            utils::transition_description(
+                                entry.spec.start,
+                                entry.goal,
+                                entry.spec.transition_id,
+                                entry.spec.label,
+                            )
+                        })
                         .collect()
                 };
 
@@ -345,9 +357,16 @@ impl LifecycleNode {
                 let mut transitions = Vec::new();
                 for start in [State::Unconfigured, State::Inactive, State::Active, State::Finalized] {
                     transitions.extend(
-                        utils::available_primary_transitions(start)
+                        utils::transition_entries_for_start(start)
                             .into_iter()
-                            .map(|(id, goal, label)| utils::transition_description(start, goal, id, label)),
+                            .map(|entry| {
+                                utils::transition_description(
+                                    entry.spec.start,
+                                    entry.goal,
+                                    entry.spec.transition_id,
+                                    entry.spec.label,
+                                )
+                            }),
                     );
                 }
 
