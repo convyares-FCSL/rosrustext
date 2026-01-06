@@ -11,8 +11,7 @@ pub trait FromTransitionEvent: Sized + Send + Sync + 'static {
 
 #[cfg(feature = "roslibrust")]
 pub async fn run_transition_event_publisher<M>(
-    node: Arc<Mutex<LifecycleNode>>,
-    publisher: Arc<roslibrust::rosbridge::Publisher<M>>,
+    node: Arc<Mutex<LifecycleNode>>, publisher: Arc<roslibrust::rosbridge::Publisher<M>>,
 ) -> Result<()>
 where
     M: roslibrust::RosMessageType + FromTransitionEvent,
@@ -24,10 +23,7 @@ where
                 .domain(Domain::Lifecycle)
                 .kind(ErrorKind::InvalidState) // or ErrorKind::Other if you prefer
                 .msg("LifecycleNode mutex poisoned")
-                .payload(Payload::Context {
-                    key: "where",
-                    value: "run_transition_event_publisher".into(),
-                })
+                .payload(Payload::Context { key: "where", value: "run_transition_event_publisher".into() })
                 .build()
         })?;
         guard.subscribe_transition_events()
@@ -35,10 +31,7 @@ where
 
     loop {
         let ev = rx.recv().await.map_err(|e| {
-            CoreError::warn()
-                .domain(Domain::Lifecycle)
-                .msgf(format_args!("transition event recv failed: {e}"))
-                .build()
+            CoreError::warn().domain(Domain::Lifecycle).msgf(format_args!("transition event recv failed: {e}")).build()
         })?;
 
         let msg = M::from_event(&ev);

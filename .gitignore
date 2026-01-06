@@ -70,6 +70,7 @@ rosbag*/
 !.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/launch.json
+*workspace
 
 # =========================
 # WSL / Linux
@@ -94,3 +95,4 @@ Makefile
 compile_commands.json
 coverage/
 lcov.info
+*-workspace/

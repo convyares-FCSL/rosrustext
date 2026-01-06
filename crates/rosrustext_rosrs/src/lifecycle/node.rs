@@ -1,4 +1,4 @@
-// crates/rosrustext_ros2_rust/src/lifecycle/node.rs
+// crates/rosrustext_rosrs/src/lifecycle/node.rs
 //
 // Notes:
 // - Keeps your “public API / internal API” split.
@@ -15,9 +15,8 @@ use lifecycle_msgs::msg::{TransitionDescription, TransitionEvent};
 use lifecycle_msgs::srv::{ChangeState, GetAvailableStates, GetAvailableTransitions, GetState};
 
 use rclrs::{
-    Client, ClientOptions, Executor, IntoNodeOptions, IntoNodeServiceCallback,
-    IntoNodeSubscriptionCallback, Node, Service, ServiceOptions, Subscription, SubscriptionOptions,
-    TimerOptions,
+    Client, ClientOptions, Executor, IntoNodeOptions, IntoNodeServiceCallback, IntoNodeSubscriptionCallback, Node,
+    Service, ServiceOptions, Subscription, SubscriptionOptions, TimerOptions,
 };
 use rosrustext_core::lifecycle::{
     begin, finish_with_error_handling, ActivationGate, CallbackResult, State, Transition,
@@ -59,10 +58,7 @@ pub struct LifecycleNode {
 // ===== Public API =====
 impl LifecycleNode {
     /// Primary constructor: create a node on the executor and enable lifecycle semantics.
-    pub fn create<'a>(
-        executor: &'a Executor,
-        options: impl IntoNodeOptions<'a>,
-    ) -> Result<Self> {
+    pub fn create<'a>(executor: &'a Executor, options: impl IntoNodeOptions<'a>) -> Result<Self> {
         let node = Arc::new(executor.create_node(options)?);
         Self::try_new(node)
     }
@@ -132,9 +128,7 @@ impl LifecycleNode {
 
     /// Create a non-lifecycle service on the underlying node.
     pub fn create_service<'a, T, Args>(
-        &self,
-        options: impl Into<ServiceOptions<'a>>,
-        callback: impl IntoNodeServiceCallback<T, Args>,
+        &self, options: impl Into<ServiceOptions<'a>>, callback: impl IntoNodeServiceCallback<T, Args>,
     ) -> Result<Service<T>>
     where
         T: rclrs::ServiceIDL,
@@ -144,9 +138,7 @@ impl LifecycleNode {
 
     /// Create a non-lifecycle subscription on the underlying node.
     pub fn create_subscription<'a, T, Args>(
-        &self,
-        options: impl Into<SubscriptionOptions<'a>>,
-        callback: impl IntoNodeSubscriptionCallback<T, Args>,
+        &self, options: impl Into<SubscriptionOptions<'a>>, callback: impl IntoNodeSubscriptionCallback<T, Args>,
     ) -> Result<Subscription<T>>
     where
         T: rclrs::MessageIDL,
@@ -240,9 +232,7 @@ impl LifecycleNode {
             move |_req: lifecycle_msgs::srv::GetState_Request| {
                 let current = state.lock().expect("state mutex poisoned").state;
 
-                let mut resp = lifecycle_msgs::srv::GetState_Response::default();
-                resp.current_state = utils::ros_state_msg(current);
-                resp
+                lifecycle_msgs::srv::GetState_Response { current_state: utils::ros_state_msg(current) }
             },
         )?;
 
@@ -272,27 +262,19 @@ impl LifecycleNode {
                 let mut state_guard = state.lock().expect("state mutex poisoned");
 
                 if state_guard.in_flight.is_some() {
-                    let mut resp = lifecycle_msgs::srv::ChangeState_Response::default();
-                    resp.success = false;
-                    return resp;
+                    return lifecycle_msgs::srv::ChangeState_Response { success: false };
                 }
 
                 let start = state_guard.state;
                 let spec = match utils::transition_spec_for_ros_id(start, transition_id) {
                     Some(spec) => spec,
-                    None => {
-                        let mut resp = lifecycle_msgs::srv::ChangeState_Response::default();
-                        resp.success = false;
-                        return resp;
-                    }
+                    None => return lifecycle_msgs::srv::ChangeState_Response { success: false },
                 };
 
                 let intermediate = match begin(start, spec.transition) {
                     Ok(intermediate) => intermediate,
                     Err(_) => {
-                        let mut resp = lifecycle_msgs::srv::ChangeState_Response::default();
-                        resp.success = false;
-                        return resp;
+                        return lifecycle_msgs::srv::ChangeState_Response { success: false };
                     }
                 };
 
@@ -325,9 +307,7 @@ impl LifecycleNode {
                     });
                 }
 
-                let mut resp = lifecycle_msgs::srv::ChangeState_Response::default();
-                resp.success = true;
-                resp
+                lifecycle_msgs::srv::ChangeState_Response { success: true }
             },
         )?;
 
@@ -360,9 +340,7 @@ impl LifecycleNode {
                         .collect()
                 };
 
-                let mut resp = lifecycle_msgs::srv::GetAvailableTransitions_Response::default();
-                resp.available_transitions = transitions;
-                resp
+                lifecycle_msgs::srv::GetAvailableTransitions_Response { available_transitions: transitions }
             },
         )?;
 
@@ -426,24 +404,17 @@ impl LifecycleNode {
 
                 let mut transitions = Vec::new();
                 for start in [State::Unconfigured, State::Inactive, State::Active, State::Finalized] {
-                    transitions.extend(
-                        utils::transition_entries_for_start(start)
-                            .into_iter()
-                            .map(|entry| {
-                                utils::transition_description(
-                                    entry.spec.start,
-                                    entry.goal,
-                                    entry.spec.transition_id,
-                                    entry.spec.label,
-                                )
-                            }),
-                    );
+                    transitions.extend(utils::transition_entries_for_start(start).into_iter().map(|entry| {
+                        utils::transition_description(
+                            entry.spec.start,
+                            entry.goal,
+                            entry.spec.transition_id,
+                            entry.spec.label,
+                        )
+                    }));
                 }
 
-                let mut resp = rosrustext_interfaces::srv::GetTransitionGraph_Response::default();
-                resp.states = states;
-                resp.transitions = transitions;
-                resp
+                rosrustext_interfaces::srv::GetTransitionGraph_Response { states, transitions }
             },
         )?;
 
@@ -465,9 +436,7 @@ impl LifecycleNode {
                     utils::ros_state_msg(State::Finalized),
                 ];
 
-                let mut resp = lifecycle_msgs::srv::GetAvailableStates_Response::default();
-                resp.available_states = states;
-                resp
+                lifecycle_msgs::srv::GetAvailableStates_Response { available_states: states }
             },
         )?;
 

@@ -66,7 +66,7 @@ Lifecycle is the **first completed feature**, not the final goal.
 
 ---
 
-## 3. Lifecycle – Adapter: rosrustext_ros2_rust (rclrs)
+## 3. Lifecycle – Adapter: rosrustext_rosrs (rclrs)
 
 > Native RCL adapter — must converge on roslibrust parity
 

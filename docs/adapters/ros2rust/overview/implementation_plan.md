@@ -33,7 +33,7 @@ rosrustext/
 crates/
 rosrustext_core/
 rosrustext_roslibrust/
-rosrustext_ros2_rust/          (optional feature-gated rclrs transport)
+rosrustext_rosrs/          (optional feature-gated rclrs transport)
 rosrustext_lifecycle_proxy/    (optional bin/tool crate)
 docs/
 implementation_plan.md

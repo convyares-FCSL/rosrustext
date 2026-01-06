@@ -1,7 +1,7 @@
 use rosrustext_core::error::ErrorKind;
 use rosrustext_core::lifecycle::{
-    available_transitions, begin, finish, finish_with_error_handling, goal_state_for_transition,
-    CallbackResult, LifecycleCallbacks, State, Transition,
+    available_transitions, begin, finish, finish_with_error_handling, goal_state_for_transition, CallbackResult,
+    LifecycleCallbacks, State, Transition,
 };
 
 #[derive(Clone, Copy)]
@@ -44,20 +44,15 @@ fn success_moves_to_expected_goal_state() {
     ];
 
     for (start, transition, expected_goal) in cases {
-        let mut callbacks = TestCallbacks {
-            result: CallbackResult::Success,
-            on_error: CallbackResult::Success,
-        };
+        let mut callbacks = TestCallbacks { result: CallbackResult::Success, on_error: CallbackResult::Success };
         let intermediate = begin(start, transition).expect("begin should succeed");
-        let final_state =
-            finish(intermediate, transition, callbacks.result).expect("finish should succeed");
+        let final_state = finish(intermediate, transition, callbacks.result).expect("finish should succeed");
         assert_eq!(final_state, expected_goal);
 
         let goal_from_api = goal_state_for_transition(start, transition).unwrap();
         assert_eq!(goal_from_api, expected_goal);
 
-        let (_, driven_state) =
-            rosrustext_core::lifecycle::drive(start, transition, &mut callbacks).unwrap();
+        let (_, driven_state) = rosrustext_core::lifecycle::drive(start, transition, &mut callbacks).unwrap();
         assert_eq!(driven_state, expected_goal);
     }
 }
@@ -65,11 +60,7 @@ fn success_moves_to_expected_goal_state() {
 #[test]
 fn failure_returns_to_origin_state() {
     let cases = [
-        (
-            State::Unconfigured,
-            Transition::Configure,
-            State::Unconfigured,
-        ),
+        (State::Unconfigured, Transition::Configure, State::Unconfigured),
         (State::Inactive, Transition::Activate, State::Inactive),
         (State::Active, Transition::Deactivate, State::Active),
         (State::Inactive, Transition::Cleanup, State::Inactive),
@@ -80,8 +71,7 @@ fn failure_returns_to_origin_state() {
 
     for (start, transition, expected_goal) in cases {
         let intermediate = begin(start, transition).expect("begin should succeed");
-        let final_state = finish(intermediate, transition, CallbackResult::Failure)
-            .expect("finish should succeed");
+        let final_state = finish(intermediate, transition, CallbackResult::Failure).expect("finish should succeed");
         assert_eq!(final_state, expected_goal);
     }
 }
@@ -95,22 +85,14 @@ fn error_routes_through_error_processing_and_recovery() {
     let error_state = finish(intermediate, transition, CallbackResult::Error).unwrap();
     assert_eq!(error_state, State::ErrorProcessing);
 
-    let recovered = finish_with_error_handling(
-        intermediate,
-        transition,
-        CallbackResult::Error,
-        Some(CallbackResult::Success),
-    )
-    .unwrap();
+    let recovered =
+        finish_with_error_handling(intermediate, transition, CallbackResult::Error, Some(CallbackResult::Success))
+            .unwrap();
     assert_eq!(recovered, State::Unconfigured);
 
-    let fatal = finish_with_error_handling(
-        intermediate,
-        transition,
-        CallbackResult::Error,
-        Some(CallbackResult::Failure),
-    )
-    .unwrap();
+    let fatal =
+        finish_with_error_handling(intermediate, transition, CallbackResult::Error, Some(CallbackResult::Failure))
+            .unwrap();
     assert_eq!(fatal, State::Finalized);
 }
 
@@ -138,8 +120,7 @@ fn shutdown_from_primary_states_is_supported() {
     for state in [State::Unconfigured, State::Inactive, State::Active] {
         let intermediate = begin(state, Transition::Shutdown).unwrap();
         assert_eq!(intermediate, State::ShuttingDown);
-        let final_state =
-            finish(intermediate, Transition::Shutdown, CallbackResult::Success).unwrap();
+        let final_state = finish(intermediate, Transition::Shutdown, CallbackResult::Success).unwrap();
         assert_eq!(final_state, State::Finalized);
     }
 }

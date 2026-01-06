@@ -13,10 +13,7 @@ use bond::msg::Status;
 /// Nav2 bond QoS is not optional in practice:
 /// Reliable + TransientLocal + KeepLast(1)
 fn nav2_bond_qos() -> QoSProfile {
-    QoSProfile::default()
-        .keep_last(1)
-        .reliable()
-        .transient_local()
+    QoSProfile::default().keep_last(1).reliable().transient_local()
 }
 
 /// Lifecycle-owned bond publisher + heartbeat timer.
@@ -37,24 +34,13 @@ pub struct BondAgent {
 }
 
 impl BondAgent {
-    pub fn new(
-        node: Arc<Node>,
-        heartbeat_period: Duration,
-        heartbeat_timeout: Duration,
-    ) -> Result<Self> {
-        let status_pub =
-            Arc::new(node.create_publisher::<Status>("/bond".qos(nav2_bond_qos()))?);
+    pub fn new(node: Arc<Node>, heartbeat_period: Duration, heartbeat_timeout: Duration) -> Result<Self> {
+        let status_pub = Arc::new(node.create_publisher::<Status>("/bond".qos(nav2_bond_qos()))?);
 
         let node_name = node.name().to_string();
 
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default();
-        let instance_id = format!(
-            "rosrustext_ros2_rust_{}{}",
-            now.as_secs(),
-            now.subsec_nanos()
-        );
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default();
+        let instance_id = format!("rosrustext_rosrs_{}{}", now.as_secs(), now.subsec_nanos());
 
         let agent = Self {
             node_name,
@@ -87,14 +73,11 @@ impl BondAgent {
     fn install_timer(&self, node: Arc<Node>, inner: Arc<BondAgentInner>) -> Result<()> {
         let period = self.heartbeat_period;
 
-        let timer = node.create_timer_repeating(
-            TimerOptions::new(period),
-            move || {
-                if inner.active.load(Ordering::Relaxed) {
-                    let _ = inner.status_pub.publish(inner.make_status(true));
-                }
-            },
-        )?;
+        let timer = node.create_timer_repeating(TimerOptions::new(period), move || {
+            if inner.active.load(Ordering::Relaxed) {
+                let _ = inner.status_pub.publish(inner.make_status(true));
+            }
+        })?;
 
         *self._timer.lock().expect("bond timer mutex poisoned") = Some(timer);
         Ok(())
@@ -115,9 +98,7 @@ impl BondAgent {
         let mut msg = Status::default();
 
         // bond/Status.header.stamp exists, but "now" source is fine for parity
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default();
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default();
         msg.header.stamp.sec = now.as_secs() as i32;
         msg.header.stamp.nanosec = now.subsec_nanos();
 
@@ -146,9 +127,7 @@ impl BondAgentInner {
     fn make_status(&self, active: bool) -> Status {
         let mut msg = Status::default();
 
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default();
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default();
         msg.header.stamp.sec = now.as_secs() as i32;
         msg.header.stamp.nanosec = now.subsec_nanos();
 

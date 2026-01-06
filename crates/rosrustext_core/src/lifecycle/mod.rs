@@ -16,8 +16,8 @@ mod state;
 mod transition;
 
 pub use engine::{
-    available_transitions, begin, drive, finish, finish_with_error_handling,
-    goal_state_for_transition, CallbackResult, LifecycleCallbacks,
+    available_transitions, begin, drive, finish, finish_with_error_handling, goal_state_for_transition, CallbackResult,
+    LifecycleCallbacks,
 };
 pub use gate::ActivationGate;
 pub use graph::{transition_graph, TransitionEdge, TransitionGraph};

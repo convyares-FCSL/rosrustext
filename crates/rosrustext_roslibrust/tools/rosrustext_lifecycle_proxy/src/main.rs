@@ -8,28 +8,23 @@ use rosrustext_core::error::{CoreError, Domain, ErrorKind, Payload, Result as Co
 use rosrustext_core::lifecycle::{
     available_transitions as core_available_transitions, State as CoreState, Transition, ALL_STATES,
 };
-use rosrustext_lifecycle_proxy::bond_agent::{
-    bond_active_for_state, set_bond_active, BondAgent, BondPublisher,
-};
+use rosrustext_lifecycle_proxy::bond_agent::{bond_active_for_state, set_bond_active, BondAgent, BondPublisher};
 use rosrustext_lifecycle_proxy::config::Config;
 use rosrustext_lifecycle_proxy::proxy_state::{ProxyLifecycle, TimeoutOutcome};
 use rosrustext_lifecycle_proxy::utils::{
-    backend_path, frontend_service, log_core_error, ros_state, ros_transition_description,
-    transport_error, BACKEND_NAMESPACE, SERVICE_CHANGE_STATE, SERVICE_GET_AVAILABLE_STATES,
-    SERVICE_GET_AVAILABLE_TRANSITIONS, SERVICE_GET_STATE, SERVICE_GET_TRANSITION_GRAPH, TOPIC_BOND,
-    TOPIC_TRANSITION_EVENT,
+    backend_path, frontend_service, log_core_error, ros_state, ros_transition_description, transport_error,
+    BACKEND_NAMESPACE, SERVICE_CHANGE_STATE, SERVICE_GET_AVAILABLE_STATES, SERVICE_GET_AVAILABLE_TRANSITIONS,
+    SERVICE_GET_STATE, SERVICE_GET_TRANSITION_GRAPH, TOPIC_BOND, TOPIC_TRANSITION_EVENT,
 };
 use rosrustext_lifecycle_proxy::{
     bond::Status as BondStatus,
     lifecycle_msgs::{
-        ChangeState, ChangeStateRequest, ChangeStateResponse, GetAvailableStates,
-        GetAvailableStatesRequest, GetAvailableStatesResponse, GetAvailableTransitions,
-        GetAvailableTransitionsRequest, GetAvailableTransitionsResponse, GetState, GetStateRequest,
-        GetStateResponse, TransitionEvent as RosTransitionEvent,
+        ChangeState, ChangeStateRequest, ChangeStateResponse, GetAvailableStates, GetAvailableStatesRequest,
+        GetAvailableStatesResponse, GetAvailableTransitions, GetAvailableTransitionsRequest,
+        GetAvailableTransitionsResponse, GetState, GetStateRequest, GetStateResponse,
+        TransitionEvent as RosTransitionEvent,
     },
-    rosrustext_interfaces::{
-        GetTransitionGraph, GetTransitionGraphRequest, GetTransitionGraphResponse,
-    },
+    rosrustext_interfaces::{GetTransitionGraph, GetTransitionGraphRequest, GetTransitionGraphResponse},
 };
 use rosrustext_roslibrust::lifecycle::{ros_transition_id, transition_from_ros_id};
 
@@ -47,10 +42,8 @@ impl BondPublisher for RosbridgeBondPublisher {
     type Error = roslibrust::Error;
 
     fn publish<'a>(
-        &'a self,
-        msg: &'a BondStatus,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), Self::Error>> + Send + 'a>>
-    {
+        &'a self, msg: &'a BondStatus,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), Self::Error>> + Send + 'a>> {
         Box::pin(async move { self.inner.publish(msg).await })
     }
 }
@@ -64,13 +57,8 @@ impl Backend {
         }
     }
 
-    async fn call_change_state(
-        &self,
-        req: ChangeStateRequest,
-    ) -> roslibrust::Result<ChangeStateResponse> {
-        self.ros
-            .call_service::<ChangeState>(&self.change_state, req)
-            .await
+    async fn call_change_state(&self, req: ChangeStateRequest) -> roslibrust::Result<ChangeStateResponse> {
+        self.ros.call_service::<ChangeState>(&self.change_state, req).await
     }
 }
 
@@ -91,9 +79,8 @@ async fn main() -> CoreResult<()> {
 
     let config = Config::from_args();
 
-    let ros_server = ClientHandle::new(&config.bridge_url)
-        .await
-        .map_err(|err| transport_error("connect to rosbridge", err))?;
+    let ros_server =
+        ClientHandle::new(&config.bridge_url).await.map_err(|err| transport_error("connect to rosbridge", err))?;
     let ros_backend = ClientHandle::new(&config.bridge_url)
         .await
         .map_err(|err| transport_error("connect to rosbridge backend", err))?;
@@ -127,20 +114,13 @@ async fn main() -> CoreResult<()> {
 
     let change_state_srv = frontend_service(&config.target_node, SERVICE_CHANGE_STATE);
     let get_state_srv = frontend_service(&config.target_node, SERVICE_GET_STATE);
-    let get_available_states_srv =
-        frontend_service(&config.target_node, SERVICE_GET_AVAILABLE_STATES);
-    let get_available_transitions_srv =
-        frontend_service(&config.target_node, SERVICE_GET_AVAILABLE_TRANSITIONS);
-    let get_transition_graph_srv =
-        frontend_service(&config.target_node, SERVICE_GET_TRANSITION_GRAPH);
+    let get_available_states_srv = frontend_service(&config.target_node, SERVICE_GET_AVAILABLE_STATES);
+    let get_available_transitions_srv = frontend_service(&config.target_node, SERVICE_GET_AVAILABLE_TRANSITIONS);
+    let get_transition_graph_srv = frontend_service(&config.target_node, SERVICE_GET_TRANSITION_GRAPH);
 
     info!(
         "proxy started node_name={} target=/{}/ bridge={} backend_ns=/{}/{}",
-        config.node_name,
-        config.target_node,
-        config.bridge_url,
-        config.target_node,
-        BACKEND_NAMESPACE
+        config.node_name, config.target_node, config.bridge_url, config.target_node, BACKEND_NAMESPACE
     );
 
     let change_state_timeout = Duration::from_millis(
@@ -156,10 +136,7 @@ async fn main() -> CoreResult<()> {
     let _change_handle = ros_server
         .advertise_service::<ChangeState, _>(&change_state_srv, move |req: ChangeStateRequest| {
             let mut req = req;
-            info!(
-                "change_state request id={} label='{}'",
-                req.transition.id, req.transition.label
-            );
+            info!("change_state request id={} label='{}'", req.transition.id, req.transition.label);
             let mut guard = match state_for_change.lock() {
                 Ok(guard) => guard,
                 Err(_) => {
@@ -168,10 +145,7 @@ async fn main() -> CoreResult<()> {
                             .domain(Domain::Lifecycle)
                             .kind(ErrorKind::InvalidState)
                             .msg("lifecycle state mutex poisoned")
-                            .payload(Payload::Context {
-                                key: "where",
-                                value: "change_state".into(),
-                            })
+                            .payload(Payload::Context { key: "where", value: "change_state".into() })
                             .build(),
                     );
                     info!("change_state response success=false (state lock)");
@@ -242,10 +216,7 @@ async fn main() -> CoreResult<()> {
                 tokio::time::sleep(change_state_timeout).await;
                 let outcome = match state_for_timeout.lock() {
                     Ok(mut guard) => guard.confirm_or_timeout(plan),
-                    Err(_) => TimeoutOutcome {
-                        ok: true,
-                        warned: false,
-                    },
+                    Err(_) => TimeoutOutcome { ok: true, warned: false },
                 };
                 if outcome.warned {
                     set_bond_active(&bond_for_timeout, false);
@@ -276,10 +247,7 @@ async fn main() -> CoreResult<()> {
                         .domain(Domain::Lifecycle)
                         .kind(ErrorKind::InvalidState)
                         .msg("lifecycle state mutex poisoned")
-                        .payload(Payload::Context {
-                            key: "where",
-                            value: "get_state".into(),
-                        })
+                        .payload(Payload::Context { key: "where", value: "get_state".into() })
                         .build();
                     log_core_error(err.clone());
                     return Err(err.into());
@@ -293,14 +261,11 @@ async fn main() -> CoreResult<()> {
         .map_err(|err| transport_error("advertise get_state", err))?;
 
     let _get_available_states_handle = ros_server
-        .advertise_service::<GetAvailableStates, _>(
-            &get_available_states_srv,
-            move |req: GetAvailableStatesRequest| {
-                let _ = req;
-                let available_states = ALL_STATES.into_iter().map(ros_state).collect();
-                Ok(GetAvailableStatesResponse { available_states })
-            },
-        )
+        .advertise_service::<GetAvailableStates, _>(&get_available_states_srv, move |req: GetAvailableStatesRequest| {
+            let _ = req;
+            let available_states = ALL_STATES.into_iter().map(ros_state).collect();
+            Ok(GetAvailableStatesResponse { available_states })
+        })
         .await
         .map_err(|err| transport_error("advertise get_available_states", err))?;
 
@@ -317,10 +282,7 @@ async fn main() -> CoreResult<()> {
                             .domain(Domain::Lifecycle)
                             .kind(ErrorKind::InvalidState)
                             .msg("lifecycle state mutex poisoned")
-                            .payload(Payload::Context {
-                                key: "where",
-                                value: "get_available_transitions".into(),
-                            })
+                            .payload(Payload::Context { key: "where", value: "get_available_transitions".into() })
                             .build();
                         log_core_error(err.clone());
                         return Err(err.into());
@@ -330,46 +292,33 @@ async fn main() -> CoreResult<()> {
                     .iter()
                     .copied()
                     .map(|transition| {
-                        ros_transition_description(state, transition)
-                            .inspect_err(|err| log_core_error(err.clone()))
+                        ros_transition_description(state, transition).inspect_err(|err| log_core_error(err.clone()))
                     })
                     .collect::<CoreResult<Vec<_>>>()?;
-                Ok(GetAvailableTransitionsResponse {
-                    available_transitions,
-                })
+                Ok(GetAvailableTransitionsResponse { available_transitions })
             },
         )
         .await
         .map_err(|err| transport_error("advertise get_available_transitions", err))?;
 
     let _get_transition_graph_handle = ros_server
-        .advertise_service::<GetTransitionGraph, _>(
-            &get_transition_graph_srv,
-            move |req: GetTransitionGraphRequest| {
-                info!("get_transition_graph request");
-                let _ = req;
-                let graph = rosrustext_core::lifecycle::transition_graph()
-                    .inspect_err(|err| log_core_error(err.clone()))?;
-                let states: Vec<_> = graph.states.into_iter().map(ros_state).collect();
-                let transitions = graph
-                    .transitions
-                    .into_iter()
-                    .map(|edge| {
-                        ros_transition_description(edge.start, edge.transition)
-                            .inspect_err(|err| log_core_error(err.clone()))
-                    })
-                    .collect::<CoreResult<Vec<_>>>()?;
-                info!(
-                    "get_transition_graph response states={} transitions={}",
-                    states.len(),
-                    transitions.len()
-                );
-                Ok(GetTransitionGraphResponse {
-                    states,
-                    transitions,
+        .advertise_service::<GetTransitionGraph, _>(&get_transition_graph_srv, move |req: GetTransitionGraphRequest| {
+            info!("get_transition_graph request");
+            let _ = req;
+            let graph =
+                rosrustext_core::lifecycle::transition_graph().inspect_err(|err| log_core_error(err.clone()))?;
+            let states: Vec<_> = graph.states.into_iter().map(ros_state).collect();
+            let transitions = graph
+                .transitions
+                .into_iter()
+                .map(|edge| {
+                    ros_transition_description(edge.start, edge.transition)
+                        .inspect_err(|err| log_core_error(err.clone()))
                 })
-            },
-        )
+                .collect::<CoreResult<Vec<_>>>()?;
+            info!("get_transition_graph response states={} transitions={}", states.len(), transitions.len());
+            Ok(GetTransitionGraphResponse { states, transitions })
+        })
         .await
         .map_err(|err| transport_error("advertise get_transition_graph", err))?;
 
@@ -392,17 +341,12 @@ async fn main() -> CoreResult<()> {
         loop {
             let msg = backend_event_sub.next().await;
             let next_state = match state_events.lock() {
-                Ok(mut guard) => {
-                    guard.record_event(msg.transition.id, msg.goal_state.id, msg.timestamp)
-                }
+                Ok(mut guard) => guard.record_event(msg.transition.id, msg.goal_state.id, msg.timestamp),
                 Err(_) => Err(CoreError::warn()
                     .domain(Domain::Lifecycle)
                     .kind(ErrorKind::InvalidState)
                     .msg("lifecycle state mutex poisoned")
-                    .payload(Payload::Context {
-                        key: "where",
-                        value: "transition_event".into(),
-                    })
+                    .payload(Payload::Context { key: "where", value: "transition_event".into() })
                     .build()),
             };
             match next_state {

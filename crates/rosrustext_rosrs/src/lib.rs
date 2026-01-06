@@ -1,4 +1,4 @@
-//! rosrustext_ros2_rust
+//! rosrustext_rosrs
 //!
 //! ROS-facing adapter layer built on top of `rclrs` (ros2_rust).
 //! Provides lifecycle-compatible surfaces intended to match ROS 2 tooling,
@@ -11,7 +11,7 @@
 //! - ROS/rclrs wiring lives here.
 
 pub mod error;
-#[cfg(feature = "lifecycle_msgs")]
+#[cfg(feature = "ros2")]
 pub mod lifecycle;
 
 // Adapter error type

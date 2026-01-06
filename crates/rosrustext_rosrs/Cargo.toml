@@ -1,5 +1,5 @@
 [package]
-name = "rosrustext_ros2_rust"
+name = "rosrustext_rosrs"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -23,9 +23,10 @@ tracing = "0.1"
 
 [features]
 default = []
+ros2 = ["lifecycle_msgs"]
 lifecycle_msgs = ["dep:lifecycle_msgs"]
-bond = ["dep:bond", "lifecycle_msgs"]
-transition_graph = ["dep:rosrustext_interfaces", "lifecycle_msgs"]
+bond = ["dep:bond", "ros2"]
+transition_graph = ["dep:rosrustext_interfaces", "ros2"]
 
 [dev-dependencies]
 # keep empty for now; slice-1 validation lives in rosrustext_dev_ws

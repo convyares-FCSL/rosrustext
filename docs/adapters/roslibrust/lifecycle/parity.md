@@ -170,7 +170,7 @@ All gaps are intentional and tracked.
 ## Status
 
 Lifecycle parity for `rosrustext_roslibrust` is **complete** and ready to mirror
-for the `rosrustext_ros2_rust` adapter.
+for the `rosrustext_rosrs` adapter.
 
 ---
 

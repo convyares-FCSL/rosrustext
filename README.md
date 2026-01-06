@@ -136,7 +136,7 @@ Adapters map the core semantics onto specific Rust ROS stacks.
   * Bond heartbeat
   * Transition graph service
 
-#### `rosrustext_ros2_rust` *(in progress)*
+#### `rosrustext_rosrs` *(in progress)*
 
 * Uses native RCL bindings (`rclrs`)
 * Lifecycle services + `transition_event` implemented

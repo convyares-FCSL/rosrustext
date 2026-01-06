@@ -75,19 +75,8 @@ pub struct CoreError {
 
 impl CoreError {
     /// Fully-specified constructor (rarely needed at call sites).
-    pub fn new(
-        domain: Domain,
-        kind: ErrorKind,
-        severity: Severity,
-        message: impl Into<Cow<'static, str>>,
-    ) -> Self {
-        Self {
-            domain,
-            kind,
-            severity,
-            message: message.into(),
-            payload: Payload::None,
-        }
+    pub fn new(domain: Domain, kind: ErrorKind, severity: Severity, message: impl Into<Cow<'static, str>>) -> Self {
+        Self { domain, kind, severity, message: message.into(), payload: Payload::None }
     }
 
     // ---------------- Fluent entry points ----------------
@@ -123,10 +112,7 @@ impl CoreError {
             .domain(Domain::Lifecycle)
             .kind(ErrorKind::InvalidTransition)
             .msg("invalid lifecycle transition")
-            .payload(Payload::LifecycleTransition {
-                from_state,
-                via_transition,
-            })
+            .payload(Payload::LifecycleTransition { from_state, via_transition })
             .build()
     }
 }
@@ -222,10 +208,7 @@ impl From<std::io::Error> for CoreError {
             .domain(Domain::Other)
             .kind(ErrorKind::Io)
             .msg("io error")
-            .payload(Payload::Context {
-                key: "io",
-                value: e.to_string().into(),
-            })
+            .payload(Payload::Context { key: "io", value: e.to_string().into() })
             .build()
     }
 }

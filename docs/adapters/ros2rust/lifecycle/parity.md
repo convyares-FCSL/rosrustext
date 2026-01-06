@@ -1,7 +1,7 @@
 # Lifecycle Parity – ros2_rust Adapter
 
 This document tracks lifecycle parity for the **ros2_rust transport adapter**
-(`rosrustext_ros2_rust` using `rclrs`).
+(`rosrustext_rosrs` using `rclrs`).
 
 Canonical reference:
 
@@ -81,7 +81,7 @@ Current behavior (ros2_rust, Jazzy):
 
 **Transition table single source of truth:**
 The adapter derives validation, `get_available_transitions`, and `get_transition_graph`
-from one canonical transition table in `crates/rosrustext_ros2_rust/src/lifecycle/utils.rs`.
+from one canonical transition table in `crates/rosrustext_rosrs/src/lifecycle/utils.rs`.
 
 ---
 
@@ -179,7 +179,7 @@ lifecycle manager compatibility.
 
 ## Definition of Done (ros2_rust lifecycle)
 
-Lifecycle parity is complete when a Rust node using `rosrustext_ros2_rust` can be:
+Lifecycle parity is complete when a Rust node using `rosrustext_rosrs` can be:
 
 * Driven by `ros2 lifecycle get/set`
 * Managed by Python lifecycle managers

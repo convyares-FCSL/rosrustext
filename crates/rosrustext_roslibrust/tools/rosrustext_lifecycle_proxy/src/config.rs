@@ -21,14 +21,9 @@ impl Config {
         S: AsRef<str>,
     {
         let mut node_name: Option<String> = None;
-        let mut target_node =
-            env::var("ROSRUSTEXT_TARGET_NODE").unwrap_or_else(|_| DEFAULT_TARGET_NODE.to_string());
-        let mut bridge_url =
-            env::var("ROSRUSTEXT_BRIDGE_URL").unwrap_or_else(|_| DEFAULT_BRIDGE_URL.to_string());
-        let mut bond_enabled = env::var("ROSRUSTEXT_BOND")
-            .ok()
-            .and_then(parse_bool)
-            .unwrap_or(true);
+        let mut target_node = env::var("ROSRUSTEXT_TARGET_NODE").unwrap_or_else(|_| DEFAULT_TARGET_NODE.to_string());
+        let mut bridge_url = env::var("ROSRUSTEXT_BRIDGE_URL").unwrap_or_else(|_| DEFAULT_BRIDGE_URL.to_string());
+        let mut bond_enabled = env::var("ROSRUSTEXT_BOND").ok().and_then(parse_bool).unwrap_or(true);
 
         let mut args = iter.into_iter();
         let _ = args.next();
@@ -72,12 +67,7 @@ impl Config {
 
         let node_name = node_name.unwrap_or_else(|| target_node.clone());
 
-        Self {
-            node_name,
-            target_node,
-            bridge_url,
-            bond_enabled,
-        }
+        Self { node_name, target_node, bridge_url, bond_enabled }
     }
 }
 

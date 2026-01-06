@@ -1,15 +1,10 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use lifecycle_msgs::msg::{
-    State as RosState, Transition as RosTransition, TransitionDescription, TransitionEvent,
-};
+use lifecycle_msgs::msg::{State as RosState, Transition as RosTransition, TransitionDescription, TransitionEvent};
 use rosrustext_core::lifecycle::{goal_state_for_transition, CallbackResult, State, Transition};
 
 pub(crate) fn change_state_delay_ms() -> u64 {
-    std::env::var("ROSRUSTEXT_RCLRS_CHANGE_STATE_DELAY_MS")
-        .ok()
-        .and_then(|val| val.parse::<u64>().ok())
-        .unwrap_or(0)
+    std::env::var("ROSRUSTEXT_RCLRS_CHANGE_STATE_DELAY_MS").ok().and_then(|val| val.parse::<u64>().ok()).unwrap_or(0)
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -71,14 +66,8 @@ const TRANSITION_SPECS: &[TransitionSpec] = &[
     },
 ];
 
-pub(crate) fn transition_spec_for_ros_id(
-    start: State,
-    transition_id: u8,
-) -> Option<TransitionSpec> {
-    TRANSITION_SPECS
-        .iter()
-        .copied()
-        .find(|spec| spec.start == start && spec.transition_id == transition_id)
+pub(crate) fn transition_spec_for_ros_id(start: State, transition_id: u8) -> Option<TransitionSpec> {
+    TRANSITION_SPECS.iter().copied().find(|spec| spec.start == start && spec.transition_id == transition_id)
 }
 
 pub(crate) fn transition_entries_for_start(start: State) -> Vec<TransitionEntry> {
@@ -127,13 +116,11 @@ fn env_callback_result(prefix: &str, transition: Transition) -> Option<CallbackR
 }
 
 pub(crate) fn transition_result_for(transition: Transition) -> CallbackResult {
-    env_callback_result("ROSRUSTEXT_RCLRS_TRANSITION_RESULT", transition)
-        .unwrap_or(CallbackResult::Success)
+    env_callback_result("ROSRUSTEXT_RCLRS_TRANSITION_RESULT", transition).unwrap_or(CallbackResult::Success)
 }
 
 pub(crate) fn on_error_result_for(transition: Transition) -> CallbackResult {
-    env_callback_result("ROSRUSTEXT_RCLRS_ON_ERROR_RESULT", transition)
-        .unwrap_or(CallbackResult::Success)
+    env_callback_result("ROSRUSTEXT_RCLRS_ON_ERROR_RESULT", transition).unwrap_or(CallbackResult::Success)
 }
 
 /// Get available primary transitions from given start State.
@@ -150,56 +137,32 @@ pub(crate) fn ros_primary_state_id(s: State) -> u8 {
 
 /// Create lifecycle_msgs/msg/State from primary State.
 pub(crate) fn ros_state_msg(s: State) -> RosState {
-    let mut msg = RosState::default();
-    msg.id = ros_primary_state_id(s);
-    msg.label = format!("{:?}", s);
-    msg
+    RosState { id: ros_primary_state_id(s), label: format!("{:?}", s) }
 }
 
 /// Create lifecycle_msgs/msg/TransitionDescription from primary transition data.
-pub(crate) fn transition_description(
-    start: State,
-    goal: State,
-    id: u8,
-    label: &str,
-) -> TransitionDescription {
-    let mut t = RosTransition::default();
-    t.id = id;
-    t.label = label.to_string();
+pub(crate) fn transition_description(start: State, goal: State, id: u8, label: &str) -> TransitionDescription {
+    let t = RosTransition { id, label: label.to_string() };
 
-    let mut td = TransitionDescription::default();
-    td.transition = t;
-    td.start_state = ros_state_msg(start);
-    td.goal_state = ros_state_msg(goal);
-    td
+    TransitionDescription { transition: t, start_state: ros_state_msg(start), goal_state: ros_state_msg(goal) }
 }
 
 /// Get current time in nanoseconds since UNIX_EPOCH.
 pub(crate) fn now_ns() -> u64 {
     // Jazzy TransitionEvent.timestamp is u64 nanoseconds (not builtin_interfaces/Time)
-    (SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos()) as u64
+    (SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos()) as u64
 }
 
 /// Create lifecycle_msgs/msg/TransitionEvent from primary transition data.
-pub(crate) fn make_transition_event(
-    start: State,
-    goal: State,
-    id: u8,
-    label: &str,
-) -> TransitionEvent {
-    let mut t = RosTransition::default();
-    t.id = id;
-    t.label = label.to_string();
+pub(crate) fn make_transition_event(start: State, goal: State, id: u8, label: &str) -> TransitionEvent {
+    let t = RosTransition { id, label: label.to_string() };
 
-    let mut ev = TransitionEvent::default();
-    ev.timestamp = now_ns();
-    ev.transition = t;
-    ev.start_state = ros_state_msg(start);
-    ev.goal_state = ros_state_msg(goal);
-    ev
+    TransitionEvent {
+        timestamp: now_ns(),
+        transition: t,
+        start_state: ros_state_msg(start),
+        goal_state: ros_state_msg(goal),
+    }
 }
 
 #[cfg(test)]

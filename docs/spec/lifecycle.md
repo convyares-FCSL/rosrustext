@@ -53,7 +53,11 @@ Transition:
 
 - Accepts ROS transition IDs per conventions.
 - Success response indicates **transition was accepted or initiated**.
-- Completion timing is implementation-defined.
+- For tooling compatibility (notably Nav2), the **default path** must update
+  `get_state` to the expected goal state immediately after a successful response.
+- Async/in-flight completion is allowed **only** when explicitly enabled or when
+  the caller is known to tolerate it; `transition_event` remains the authoritative
+  outcome signal in those cases.
 - Transition events must report actual outcomes.
 
 ---

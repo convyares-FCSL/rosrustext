@@ -1,4 +1,4 @@
-//! rosrustext_ros2_rust::lifecycle
+//! rosrustext_rosrs::lifecycle
 //!
 //! Adapter-side lifecycle API façade for rclrs.
 //!

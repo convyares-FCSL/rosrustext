@@ -46,7 +46,7 @@ if [[ ! -f "${EXAMPLE_CARGO}" ]]; then
   fail "example Cargo.toml not found: ${EXAMPLE_CARGO}"
 fi
 
-if ! rg -q 'rosrustext_ros2_rust.*features.*transition_graph' "${EXAMPLE_CARGO}"; then
+if ! rg -q 'rosrustext_rosrs.*features.*transition_graph' "${EXAMPLE_CARGO}"; then
   fail "transition_graph feature not enabled in ${EXAMPLE_CARGO} (enable features = [\"transition_graph\", ...])"
 fi
 

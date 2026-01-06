@@ -4,12 +4,7 @@ use std::path::PathBuf;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rerun-if-env-changed=AMENT_PREFIX_PATH");
 
-    let packages = [
-        "lifecycle_msgs",
-        "bond",
-        "std_msgs",
-        "rosrustext_interfaces",
-    ];
+    let packages = ["lifecycle_msgs", "bond", "std_msgs", "rosrustext_interfaces"];
     let mut search_paths = Vec::new();
 
     let local_override = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("interfaces");
@@ -33,8 +28,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     } else {
         let repo_interfaces = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("interfaces");
-        if repo_interfaces.join("package.xml").is_file() && !search_paths.contains(&repo_interfaces)
-        {
+        if repo_interfaces.join("package.xml").is_file() && !search_paths.contains(&repo_interfaces) {
             search_paths.push(repo_interfaces.clone());
         }
         let repo_bond = repo_interfaces.join("bond");
@@ -85,16 +79,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if found.len() != packages.len() {
-        let missing: Vec<_> = packages
-            .iter()
-            .copied()
-            .filter(|pkg| !found.contains(pkg))
-            .collect();
-        return Err(format!(
-            "missing ROS packages in AMENT_PREFIX_PATH or /opt/ros/jazzy: {}",
-            missing.join(", ")
-        )
-        .into());
+        let missing: Vec<_> = packages.iter().copied().filter(|pkg| !found.contains(pkg)).collect();
+        return Err(
+            format!("missing ROS packages in AMENT_PREFIX_PATH or /opt/ros/jazzy: {}", missing.join(", ")).into()
+        );
     }
 
     let (source, dependent_paths) =

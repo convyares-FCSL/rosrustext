@@ -212,7 +212,7 @@ for full system validation.
 ---
 
 ## Session 14 – 2026-01-04 – ros2_rust lifecycle services (rclrs)
-- Implemented minimal lifecycle services in `rosrustext_ros2_rust`:
+- Implemented minimal lifecycle services in `rosrustext_rosrs`:
   - `/<node>/get_state`
   - `/<node>/change_state`
   - `/<node>/get_available_states`
@@ -274,7 +274,7 @@ ros2_rust can opt into the custom service types without breaking default builds.
 ---
 
 ## Session 17 – 2026-01-04 – ros2_rust transition graph + dev_ws smoke coverage
-- Implemented `GetTransitionGraph` service in `rosrustext_ros2_rust` behind
+- Implemented `GetTransitionGraph` service in `rosrustext_rosrs` behind
   the `transition_graph` feature, returning the static primary state graph.
 - Validated service wiring via the dev workspace lifecycle example.
 - Added dev_ws usage notes + transition graph smoke flow to README.

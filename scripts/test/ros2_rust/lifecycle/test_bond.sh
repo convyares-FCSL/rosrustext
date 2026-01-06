@@ -45,7 +45,7 @@ if [[ ! -f "${EXAMPLE_CARGO}" ]]; then
   fail "example Cargo.toml not found: ${EXAMPLE_CARGO}"
 fi
 
-if ! rg -q 'rosrustext_ros2_rust.*features.*bond' "${EXAMPLE_CARGO}"; then
+if ! rg -q 'rosrustext_rosrs.*features.*bond' "${EXAMPLE_CARGO}"; then
   fail "bond feature not enabled in ${EXAMPLE_CARGO} (enable features = [\"bond\", ...])"
 fi
 
