@@ -12,8 +12,8 @@ roslibrust = { version = "0.18.0", features = ["rosbridge", "codegen"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "sync", "time"] }
 tracing = { workspace = true }
 tracing-subscriber = "0.3"
-rosrustext_core = { path = "../../../rosrustext_core" }
-rosrustext_roslibrust = { path = "../.." }
+rosrustext_core = { version = "0.2.0", path = "../../../rosrustext_core" }
+rosrustext_roslibrust = { version = "0.2.0", path = "../.." }
 
 [build-dependencies]
 roslibrust = { version = "0.18.0", features = ["codegen"] }
