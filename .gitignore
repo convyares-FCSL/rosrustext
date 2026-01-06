@@ -96,3 +96,9 @@ compile_commands.json
 coverage/
 lcov.info
 *-workspace/
+
+# =========================
+# IDEs (User Request)
+# =========================
+.idea/
+*.code-workspace
