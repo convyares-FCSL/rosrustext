@@ -74,7 +74,14 @@ ros2_node_list() {
   if ! out="$(timeout "${ROS2_TIMEOUT}s" ros2 node list 2>/dev/null)"; then
     fail "ros2 node list timed out"
   fi
-  printf '%s\\n' "${out}"
+  printf '%s\n' "${out}"
+}
+
+ros2_node_list_contains() {
+  local node="$1"
+  local out=""
+  out="$(ros2_node_list)"
+  grep -Fxq "${node}" <<< "${out}"
 }
 
 ros2_lifecycle_get() {
@@ -87,7 +94,7 @@ wait_for_node() {
   local start
   start="$(date +%s)"
   while true; do
-    if ros2_node_list | grep -qx "${node}"; then
+    if ros2_node_list_contains "${node}"; then
       return 0
     fi
     if (( $(date +%s) - start >= timeout_s )); then
@@ -103,7 +110,7 @@ wait_for_node_gone() {
   local start
   start="$(date +%s)"
   while true; do
-    if ! ros2_node_list | grep -qx "${node}"; then
+    if ! ros2_node_list_contains "${node}"; then
       return 0
     fi
     if (( $(date +%s) - start >= timeout_s )); then
@@ -165,28 +172,31 @@ wait_for_active_state() {
 }
 
 ros2_daemon_ready
+restart_ros2_daemon
 
+set +o pipefail
 if ! timeout "${ROS2_TIMEOUT}s" ros2 pkg list 2>/dev/null | grep -qx "nav2_lifecycle_manager"; then
   echo "skip: nav2_lifecycle_manager package not found; install nav2 or source its overlay" >&2
   exit 0
 fi
+set -o pipefail
 
-if ros2_node_list | grep -qx "${NODE_NAME}"; then
+if ros2_node_list_contains "${NODE_NAME}"; then
   echo "info: detected ${NODE_NAME}; attempting shutdown"
   timeout 10s ros2 lifecycle set "${NODE_NAME}" shutdown >/dev/null 2>&1 || true
   echo "info: waiting up to ${NODE_STOP_TIMEOUT}s for ${NODE_NAME} to stop"
   wait_for_node_gone "${NODE_NAME}" "${NODE_STOP_TIMEOUT}" || true
-  if ros2_node_list | grep -qx "${NODE_NAME}"; then
+  if ros2_node_list_contains "${NODE_NAME}"; then
     echo "info: restarting ros2 daemon to clear stale node list"
     restart_ros2_daemon
   fi
-  if ros2_node_list | grep -qx "${NODE_NAME}"; then
+  if ros2_node_list_contains "${NODE_NAME}"; then
     echo "info: forcing shutdown of ${NODE_NAME} process"
     force_kill_node_processes
     wait_for_node_gone "${NODE_NAME}" "${NODE_STOP_TIMEOUT}" || true
     restart_ros2_daemon
   fi
-  if ros2_node_list | grep -qx "${NODE_NAME}"; then
+  if ros2_node_list_contains "${NODE_NAME}"; then
     fail "${NODE_NAME} already running; stop it before running this script"
   fi
 fi

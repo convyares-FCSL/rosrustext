@@ -29,3 +29,6 @@ pub use rosrustext_interfaces::srv::GetTransitionGraph;
 // LifecycleNode (thin wrapper around Arc<rclrs::Node> + gate)
 mod node;
 pub use node::LifecycleNode;
+
+// Internal helpers split out from node for readability
+mod utils;

@@ -12,6 +12,7 @@ TESTS=(
   "scripts/test/ros2_rust/lifecycle/test_transition_graph.sh"
   "scripts/test/ros2_rust/lifecycle/test_lifecycle_cli.sh"
   "scripts/test/ros2_rust/lifecycle/test_change_state_timing.sh"
+  "scripts/test/ros2_rust/lifecycle/test_busy_rejection.sh"
   "scripts/test/ros2_rust/lifecycle/test_bond.sh"
   "scripts/test/ros2_rust/lifecycle/test_nav2_lifecycle_manager.sh"
 )

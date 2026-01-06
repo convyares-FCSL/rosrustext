@@ -8,13 +8,12 @@ NODE_NAME="/ros2_rust_lifecycle_gate_minimal"
 ROS2_TIMEOUT="${ROS2_TIMEOUT:-5}"
 NODE_START_TIMEOUT="${NODE_START_TIMEOUT:-60}"
 NODE_STOP_TIMEOUT="${NODE_STOP_TIMEOUT:-60}"
-CHANGE_STATE_DELAY_MS="${CHANGE_STATE_DELAY_MS:-200}"
+CHANGE_STATE_DELAY_MS="${CHANGE_STATE_DELAY_MS:-300}"
 STATE_WAIT_TIMEOUT="${STATE_WAIT_TIMEOUT:-5}"
 EVENT_TIMEOUT="${EVENT_TIMEOUT:-5}"
 LOG_DIR="${LOG_DIR:-$ROOT_DIR/logs/run_all/ros2_rust}"
 SCRIPT_NAME="$(basename "$0" .sh)"
 NODE_LOG="${LOG_DIR}/${SCRIPT_NAME}.log"
-EVENT_LOG="${LOG_DIR}/${SCRIPT_NAME}_event.log"
 
 fail() { echo "error: $*" >&2; exit 1; }
 
@@ -158,10 +157,6 @@ NODE_PID=$!
 popd >/dev/null
 
 cleanup() {
-  if [[ -n "${EVENT_PID:-}" ]]; then
-    kill "${EVENT_PID}" >/dev/null 2>&1 || true
-    wait "${EVENT_PID}" >/dev/null 2>&1 || true
-  fi
   if [[ -n "${NODE_PGID:-}" ]]; then
     kill -INT -- "-${NODE_PGID}" >/dev/null 2>&1 || true
   fi
@@ -189,7 +184,6 @@ python3 - <<'PY'
 import os
 import sys
 import time
-import subprocess
 
 import rclpy
 from rclpy.node import Node
@@ -199,10 +193,9 @@ from lifecycle_msgs.msg import Transition, TransitionEvent
 node_name = os.environ.get("NODE_NAME", "/ros2_rust_lifecycle_gate_minimal")
 state_wait_timeout = float(os.environ.get("STATE_WAIT_TIMEOUT", "5"))
 event_timeout = float(os.environ.get("EVENT_TIMEOUT", "5"))
-threshold_ms = int(os.environ.get("CHANGE_STATE_THRESHOLD_MS", "150"))
 
 rclpy.init()
-node = Node("rosrustext_change_state_timing_checker")
+node = Node("rosrustext_busy_rejection_checker")
 
 change_client = node.create_client(ChangeState, f"{node_name}/change_state")
 get_client = node.create_client(GetState, f"{node_name}/get_state")
@@ -214,10 +207,10 @@ if not get_client.wait_for_service(timeout_sec=5.0):
     print(f"error: get_state service not available at {node_name}/get_state", file=sys.stderr)
     sys.exit(1)
 
-event_msg = {"msg": None}
+event_labels = []
 event_count = {"count": 0}
 def on_event(msg):
-    event_msg["msg"] = msg
+    event_labels.append(msg.transition.label)
     event_count["count"] += 1
 
 node.create_subscription(TransitionEvent, f"{node_name}/transition_event", on_event, 10)
@@ -231,72 +224,74 @@ def get_state_label():
         return None
     return future.result().current_state.label
 
-def ros2_lifecycle_get_label():
-    out = subprocess.check_output(
-        ["ros2", "lifecycle", "get", node_name],
-        stderr=subprocess.STDOUT,
-        text=True,
-    ).strip()
-    if not out:
-        return None
-    return out.split()[0]
-
 def wait_for_state(label, timeout_s):
     start = time.monotonic()
     while time.monotonic() - start < timeout_s:
-        cur = ros2_lifecycle_get_label()
+        cur = get_state_label()
         if cur == label:
             return True
         rclpy.spin_once(node, timeout_sec=0.05)
         time.sleep(0.05)
     return False
 
+def call_change_state(transition_id):
+    req = ChangeState.Request()
+    req.transition.id = transition_id
+    future = change_client.call_async(req)
+    while rclpy.ok() and not future.done():
+        rclpy.spin_once(node, timeout_sec=0.05)
+    return future.result()
+
 cur = get_state_label()
-if cur not in ("Unconfigured", "Inactive", "Active"):
-    print(f"error: unexpected initial state {cur}", file=sys.stderr)
+if cur == "Finalized":
+    print("error: node is Finalized; restart before running this test", file=sys.stderr)
     sys.exit(1)
 if cur == "Active":
-    # deactivate then cleanup
-    req = ChangeState.Request()
-    req.transition.id = Transition.TRANSITION_DEACTIVATE
-    change_client.call(req)
-    wait_for_state("Inactive", 2.0)
-    req.transition.id = Transition.TRANSITION_CLEANUP
-    change_client.call(req)
-    wait_for_state("Unconfigured", 2.0)
+    resp = call_change_state(Transition.TRANSITION_DEACTIVATE)
+    if resp is None or not resp.success:
+        print("error: failed to deactivate before test", file=sys.stderr)
+        sys.exit(1)
+    if not wait_for_state("Inactive", 2.0):
+        print("error: failed to reach Inactive before test", file=sys.stderr)
+        sys.exit(1)
+    resp = call_change_state(Transition.TRANSITION_CLEANUP)
+    if resp is None or not resp.success:
+        print("error: failed to cleanup before test", file=sys.stderr)
+        sys.exit(1)
+    if not wait_for_state("Unconfigured", 2.0):
+        print("error: failed to reach Unconfigured before test", file=sys.stderr)
+        sys.exit(1)
 elif cur == "Inactive":
-    req = ChangeState.Request()
-    req.transition.id = Transition.TRANSITION_CLEANUP
-    change_client.call(req)
-    wait_for_state("Unconfigured", 2.0)
+    resp = call_change_state(Transition.TRANSITION_CLEANUP)
+    if resp is None or not resp.success:
+        print("error: failed to cleanup before test", file=sys.stderr)
+        sys.exit(1)
+    if not wait_for_state("Unconfigured", 2.0):
+        print("error: failed to reach Unconfigured before test", file=sys.stderr)
+        sys.exit(1)
 
-event_msg["msg"] = None
+for _ in range(10):
+    rclpy.spin_once(node, timeout_sec=0.05)
+    time.sleep(0.02)
+event_labels.clear()
 event_count["count"] = 0
 
-# ---- timing: direct rclpy client (avoid ros2 CLI startup overhead) ----
-req = ChangeState.Request()
-req.transition.id = int(
-    os.environ.get("CHANGE_STATE_TRANSITION_ID", str(Transition.TRANSITION_CONFIGURE))
-)
+resp1 = call_change_state(Transition.TRANSITION_CONFIGURE)
+if resp1 is None or not resp1.success:
+    print("error: first change_state was not accepted", file=sys.stderr)
+    sys.exit(1)
 
-t0 = time.perf_counter()
-future = change_client.call_async(req)
-while rclpy.ok() and not future.done():
-    rclpy.spin_once(node, timeout_sec=0.05)
-
-elapsed_ms = int((time.perf_counter() - t0) * 1000)
-resp = future.result()
-if resp is None:
-    print("error: service call failed (no response)", file=sys.stderr)
-    sys.exit(3)
-
-if elapsed_ms >= threshold_ms:
-    print(f"error: change_state took {elapsed_ms}ms (expected < {threshold_ms}ms)", file=sys.stderr)
+resp2 = call_change_state(Transition.TRANSITION_CONFIGURE)
+if resp2 is None:
+    print("error: second change_state did not return a response", file=sys.stderr)
+    sys.exit(1)
+if resp2.success:
+    print("error: expected second change_state to be rejected while busy", file=sys.stderr)
     sys.exit(1)
 
 cur = get_state_label()
 if cur != "Unconfigured":
-    print(f"error: expected Unconfigured immediately after change_state, got {cur}", file=sys.stderr)
+    print(f"error: expected Unconfigured while in-flight, got {cur}", file=sys.stderr)
     sys.exit(1)
 
 if not wait_for_state("Inactive", state_wait_timeout):
@@ -306,19 +301,21 @@ if not wait_for_state("Inactive", state_wait_timeout):
 start = time.monotonic()
 while time.monotonic() - start < event_timeout:
     rclpy.spin_once(node, timeout_sec=0.05)
-    if event_msg["msg"] is not None:
+    if event_count["count"] >= 1:
         break
-if event_msg["msg"] is None:
+    time.sleep(0.05)
+
+if event_count["count"] == 0:
     print(f"error: transition_event not observed within {event_timeout}s", file=sys.stderr)
-    sys.exit(1)
-if event_msg["msg"].transition.label != "configure":
-    print(f"error: transition_event label mismatch: {event_msg['msg'].transition.label}", file=sys.stderr)
     sys.exit(1)
 if event_count["count"] != 1:
     print(f"error: expected 1 transition_event, got {event_count['count']}", file=sys.stderr)
     sys.exit(1)
+if event_labels[0] != "configure":
+    print(f"error: transition_event label mismatch: {event_labels[0]}", file=sys.stderr)
+    sys.exit(1)
 
-print("ok: change_state returned quickly; state + event converged")
+print("ok: busy rejection enforced; no phantom event")
 rclpy.shutdown()
 PY
 

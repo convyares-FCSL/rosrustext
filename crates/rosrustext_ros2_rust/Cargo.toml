@@ -13,7 +13,7 @@ rosrustext_core = { path = "../rosrustext_core" }
 
 # ROS2 Rust client library (Jazzy dev_ws proven path/patch setup)
 rclrs = "0.6"
-lifecycle_msgs = "*"
+lifecycle_msgs = { version = "*" }
 bond = { version = "*", optional = true }
 rosrustext_interfaces = { version = "*", optional = true }
 
