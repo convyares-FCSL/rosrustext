@@ -3,7 +3,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use lifecycle_msgs::msg::{
     State as RosState, Transition as RosTransition, TransitionDescription, TransitionEvent,
 };
-use rosrustext_core::lifecycle::State;
+use rosrustext_core::lifecycle::{CallbackResult, State, Transition};
 
 pub(crate) fn change_state_delay_ms() -> u64 {
     std::env::var("ROSRUSTEXT_RCLRS_CHANGE_STATE_DELAY_MS")
@@ -12,37 +12,66 @@ pub(crate) fn change_state_delay_ms() -> u64 {
         .unwrap_or(0)
 }
 
-/// Apply primary transition to start State, returning goal State and label if valid.
-pub(crate) fn apply_primary_transition(
-    start: State,
-    transition_id: u8,
-) -> Option<(State, &'static str)> {
-    match (start, transition_id) {
-        (State::Unconfigured, RosTransition::TRANSITION_CONFIGURE) => {
-            Some((State::Inactive, "configure"))
+pub(crate) fn transition_from_ros_id(start: State, transition_id: u8) -> Option<Transition> {
+    match transition_id {
+        RosTransition::TRANSITION_CONFIGURE => Some(Transition::Configure),
+        RosTransition::TRANSITION_CLEANUP => Some(Transition::Cleanup),
+        RosTransition::TRANSITION_ACTIVATE => Some(Transition::Activate),
+        RosTransition::TRANSITION_DEACTIVATE => Some(Transition::Deactivate),
+        RosTransition::TRANSITION_UNCONFIGURED_SHUTDOWN if start == State::Unconfigured => {
+            Some(Transition::Shutdown)
         }
-        (State::Unconfigured, RosTransition::TRANSITION_UNCONFIGURED_SHUTDOWN) => {
-            Some((State::Finalized, "shutdown"))
+        RosTransition::TRANSITION_INACTIVE_SHUTDOWN if start == State::Inactive => {
+            Some(Transition::Shutdown)
         }
-
-        (State::Inactive, RosTransition::TRANSITION_ACTIVATE) => Some((State::Active, "activate")),
-        (State::Inactive, RosTransition::TRANSITION_CLEANUP) => {
-            Some((State::Unconfigured, "cleanup"))
+        RosTransition::TRANSITION_ACTIVE_SHUTDOWN if start == State::Active => {
+            Some(Transition::Shutdown)
         }
-        (State::Inactive, RosTransition::TRANSITION_INACTIVE_SHUTDOWN) => {
-            Some((State::Finalized, "shutdown"))
-        }
-
-        (State::Active, RosTransition::TRANSITION_DEACTIVATE) => {
-            Some((State::Inactive, "deactivate"))
-        }
-        (State::Active, RosTransition::TRANSITION_ACTIVE_SHUTDOWN) => {
-            Some((State::Finalized, "shutdown"))
-        }
-
-        (State::Finalized, _) => None,
         _ => None,
     }
+}
+
+fn transition_env_suffix(transition: Transition) -> &'static str {
+    match transition {
+        Transition::Configure => "CONFIGURE",
+        Transition::Cleanup => "CLEANUP",
+        Transition::Activate => "ACTIVATE",
+        Transition::Deactivate => "DEACTIVATE",
+        Transition::Shutdown => "SHUTDOWN",
+    }
+}
+
+fn parse_callback_result(raw: &str) -> Option<CallbackResult> {
+    match raw.trim().to_ascii_lowercase().as_str() {
+        "success" | "ok" => Some(CallbackResult::Success),
+        "failure" | "fail" => Some(CallbackResult::Failure),
+        "error" | "err" => Some(CallbackResult::Error),
+        _ => None,
+    }
+}
+
+fn env_callback_result(prefix: &str, transition: Transition) -> Option<CallbackResult> {
+    let suffix = transition_env_suffix(transition);
+    let specific = format!("{prefix}_{suffix}");
+    if let Ok(val) = std::env::var(&specific) {
+        if let Some(parsed) = parse_callback_result(&val) {
+            return Some(parsed);
+        }
+    }
+    if let Ok(val) = std::env::var(prefix) {
+        return parse_callback_result(&val);
+    }
+    None
+}
+
+pub(crate) fn transition_result_for(transition: Transition) -> CallbackResult {
+    env_callback_result("ROSRUSTEXT_RCLRS_TRANSITION_RESULT", transition)
+        .unwrap_or(CallbackResult::Success)
+}
+
+pub(crate) fn on_error_result_for(transition: Transition) -> CallbackResult {
+    env_callback_result("ROSRUSTEXT_RCLRS_ON_ERROR_RESULT", transition)
+        .unwrap_or(CallbackResult::Success)
 }
 
 /// Get available primary transitions from given start State.

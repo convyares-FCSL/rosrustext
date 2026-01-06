@@ -13,6 +13,9 @@ TESTS=(
   "scripts/test/ros2_rust/lifecycle/test_lifecycle_cli.sh"
   "scripts/test/ros2_rust/lifecycle/test_change_state_timing.sh"
   "scripts/test/ros2_rust/lifecycle/test_busy_rejection.sh"
+  "scripts/test/ros2_rust/lifecycle/test_change_state_failure.sh"
+  "scripts/test/ros2_rust/lifecycle/test_change_state_error_processing_unconfigured.sh"
+  "scripts/test/ros2_rust/lifecycle/test_change_state_error_processing_finalized.sh"
   "scripts/test/ros2_rust/lifecycle/test_bond.sh"
   "scripts/test/ros2_rust/lifecycle/test_nav2_lifecycle_manager.sh"
 )

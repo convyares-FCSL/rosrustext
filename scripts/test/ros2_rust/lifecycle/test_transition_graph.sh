@@ -74,7 +74,7 @@ ros2_node_list() {
   if ! out="$(timeout "${ROS2_TIMEOUT}s" ros2 node list 2>/dev/null)"; then
     fail "ros2 node list timed out"
   fi
-  printf '%s\\n' "${out}"
+  printf '%s\n' "${out}"
 }
 
 ros2_service_list() {
@@ -82,7 +82,7 @@ ros2_service_list() {
   if ! out="$(timeout "${ROS2_TIMEOUT}s" ros2 service list 2>/dev/null)"; then
     fail "ros2 service list timed out"
   fi
-  printf '%s\\n' "${out}"
+  printf '%s\n' "${out}"
 }
 
 wait_for_node() {

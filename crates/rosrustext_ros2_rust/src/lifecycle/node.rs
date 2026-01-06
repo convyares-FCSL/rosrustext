@@ -15,7 +15,9 @@ use lifecycle_msgs::msg::{TransitionDescription, TransitionEvent};
 use lifecycle_msgs::srv::{ChangeState, GetAvailableStates, GetAvailableTransitions, GetState};
 
 use rclrs::{Node, TimerOptions};
-use rosrustext_core::lifecycle::{ActivationGate, State};
+use rosrustext_core::lifecycle::{
+    begin, finish_with_error_handling, ActivationGate, CallbackResult, State, Transition,
+};
 
 #[cfg(feature = "transition_graph")]
 use rosrustext_interfaces::srv::GetTransitionGraph;
@@ -113,23 +115,17 @@ impl LifecycleNode {
     }
 
     /// Create a repeating timer managed by the lifecycle node's activation gate.
-    pub fn create_timer_repeating_gated<F>(
-        &self,
-        period: Duration,
-        mut callback: F,
-    ) -> Result<ManagedTimer>
+    pub fn create_timer_repeating_gated<F>(&self, period: Duration, mut callback: F) -> Result<ManagedTimer>
     where
         F: FnMut() + Send + 'static,
     {
         let gate = Arc::clone(&self.gate);
 
-        let timer = self
-            .node
-            .create_timer_repeating(TimerOptions::new(period), move || {
-                if gate.is_active() {
-                    callback();
-                }
-            })?;
+        let timer = self.node.create_timer_repeating(TimerOptions::new(period), move || {
+            if gate.is_active() {
+                callback();
+            }
+        })?;
 
         Ok(ManagedTimer::new(timer))
     }
@@ -158,10 +154,7 @@ impl LifecycleNode {
         let topic = format!("/{}/transition_event", self.node.name());
         let pub_ = Arc::new(self.node.create_publisher::<TransitionEvent>(&topic)?);
 
-        *self
-            .transition_event_pub
-            .lock()
-            .expect("transition_event_pub mutex poisoned") = Some(Arc::clone(&pub_));
+        *self.transition_event_pub.lock().expect("transition_event_pub mutex poisoned") = Some(Arc::clone(&pub_));
 
         self.keep_internal(pub_);
         Ok(())
@@ -206,7 +199,6 @@ impl LifecycleNode {
                 let transition_id = req.transition.id;
 
                 let delay_ms = utils::change_state_delay_ms();
-                let mut success = false;
                 let mut state_guard = state.lock().expect("state mutex poisoned");
 
                 if state_guard.in_flight.is_some() {
@@ -216,44 +208,50 @@ impl LifecycleNode {
                 }
 
                 let start = state_guard.state;
-                if let Some((goal, label)) = utils::apply_primary_transition(start, transition_id) {
-                    success = true;
-                    let in_flight = TransitionInFlight {
-                        start,
-                        goal,
-                        transition_id,
-                        label,
-                    };
-                    state_guard.in_flight = Some(in_flight);
-                    drop(state_guard);
-
-                    let outcome = TransitionOutcome {
-                        start: in_flight.start,
-                        goal: in_flight.goal,
-                        transition_id: in_flight.transition_id,
-                        label: in_flight.label,
-                    };
-
-                    if delay_ms == 0 {
-                        Self::apply_outcome(
-                            &state,
-                            &gate,
-                            &tev_pub,
-                            #[cfg(feature = "bond")]
-                            &bond,
-                            outcome,
-                        );
-                    } else {
-                        let completion_tx = completion_tx.clone();
-                        std::thread::spawn(move || {
-                            std::thread::sleep(Duration::from_millis(delay_ms));
-                            let _ = completion_tx.send(outcome);
-                        });
+                let transition = match utils::transition_from_ros_id(start, transition_id) {
+                    Some(transition) => transition,
+                    None => {
+                        let mut resp = lifecycle_msgs::srv::ChangeState_Response::default();
+                        resp.success = false;
+                        return resp;
                     }
+                };
+
+                let intermediate = match begin(start, transition) {
+                    Ok(intermediate) => intermediate,
+                    Err(_) => {
+                        let mut resp = lifecycle_msgs::srv::ChangeState_Response::default();
+                        resp.success = false;
+                        return resp;
+                    }
+                };
+
+                let label = transition.label();
+                let in_flight = TransitionInFlight { start, intermediate, transition, transition_id, label };
+                state_guard.in_flight = Some(in_flight);
+                drop(state_guard);
+
+                if delay_ms == 0 {
+                    let outcome = Self::compute_outcome(in_flight);
+                    Self::apply_outcome(
+                        &state,
+                        &gate,
+                        &tev_pub,
+                        #[cfg(feature = "bond")]
+                        &bond,
+                        outcome,
+                    );
+                } else {
+                    let completion_tx = completion_tx.clone();
+                    std::thread::spawn(move || {
+                        std::thread::sleep(Duration::from_millis(delay_ms));
+                        let outcome = Self::compute_outcome(in_flight);
+                        let _ = completion_tx.send(outcome);
+                    });
                 }
 
                 let mut resp = lifecycle_msgs::srv::ChangeState_Response::default();
-                resp.success = success;
+                resp.success = true;
                 resp
             },
         )?;
@@ -276,9 +274,7 @@ impl LifecycleNode {
                 } else {
                     utils::available_primary_transitions(guard.state)
                         .into_iter()
-                        .map(|(id, goal, label)| {
-                            utils::transition_description(guard.state, goal, id, label)
-                        })
+                        .map(|(id, goal, label)| utils::transition_description(guard.state, goal, id, label))
                         .collect()
                 };
 
@@ -301,34 +297,31 @@ impl LifecycleNode {
         #[cfg(feature = "bond")]
         let bond = Arc::clone(&self.bond);
 
-        let timer = self.node.create_timer_repeating(
-            TimerOptions::new(Duration::from_millis(10)),
-            move || {
-                let outcomes: Vec<TransitionOutcome> = {
-                    let rx = completion_rx.lock().expect("completion_rx mutex poisoned");
-                    let mut pending = Vec::new();
-                    loop {
-                        match rx.try_recv() {
-                            Ok(outcome) => pending.push(outcome),
-                            Err(mpsc::TryRecvError::Empty) => break,
-                            Err(mpsc::TryRecvError::Disconnected) => break,
-                        }
+        let timer = self.node.create_timer_repeating(TimerOptions::new(Duration::from_millis(10)), move || {
+            let outcomes: Vec<TransitionOutcome> = {
+                let rx = completion_rx.lock().expect("completion_rx mutex poisoned");
+                let mut pending = Vec::new();
+                loop {
+                    match rx.try_recv() {
+                        Ok(outcome) => pending.push(outcome),
+                        Err(mpsc::TryRecvError::Empty) => break,
+                        Err(mpsc::TryRecvError::Disconnected) => break,
                     }
-                    pending
-                };
-
-                for outcome in outcomes {
-                    Self::apply_outcome(
-                        &state,
-                        &gate,
-                        &tev_pub,
-                        #[cfg(feature = "bond")]
-                        &bond,
-                        outcome,
-                    );
                 }
-            },
-        )?;
+                pending
+            };
+
+            for outcome in outcomes {
+                Self::apply_outcome(
+                    &state,
+                    &gate,
+                    &tev_pub,
+                    #[cfg(feature = "bond")]
+                    &bond,
+                    outcome,
+                );
+            }
+        })?;
 
         self.keep_internal(timer);
         Ok(())
@@ -350,18 +343,11 @@ impl LifecycleNode {
                 ];
 
                 let mut transitions = Vec::new();
-                for start in [
-                    State::Unconfigured,
-                    State::Inactive,
-                    State::Active,
-                    State::Finalized,
-                ] {
+                for start in [State::Unconfigured, State::Inactive, State::Active, State::Finalized] {
                     transitions.extend(
-                        utils::available_primary_transitions(start).into_iter().map(
-                            |(id, goal, label)| {
-                                utils::transition_description(start, goal, id, label)
-                            },
-                        ),
+                        utils::available_primary_transitions(start)
+                            .into_iter()
+                            .map(|(id, goal, label)| utils::transition_description(start, goal, id, label)),
                     );
                 }
 
@@ -407,11 +393,7 @@ impl LifecycleNode {
         let heartbeat_period = Duration::from_secs(1);
         let heartbeat_timeout = Duration::from_secs(4);
 
-        let agent = Arc::new(BondAgent::new(
-            Arc::clone(&self.node),
-            heartbeat_period,
-            heartbeat_timeout,
-        )?);
+        let agent = Arc::new(BondAgent::new(Arc::clone(&self.node), heartbeat_period, heartbeat_timeout)?);
 
         // start inactive until state reaches Active
         agent.set_active(false);
@@ -431,18 +413,13 @@ impl LifecycleNode {
     where
         T: Send + Sync + 'static,
     {
-        self.internals
-            .lock()
-            .expect("LifecycleNode internals poisoned")
-            .push(Box::new(handle));
+        self.internals.lock().expect("LifecycleNode internals poisoned").push(Box::new(handle));
     }
 
     fn apply_outcome(
-        state: &Arc<Mutex<LifecycleState>>,
-        gate: &Arc<ActivationGate>,
+        state: &Arc<Mutex<LifecycleState>>, gate: &Arc<ActivationGate>,
         tev_pub: &Arc<Mutex<Option<Arc<rclrs::Publisher<TransitionEvent>>>>>,
-        #[cfg(feature = "bond")] bond: &Arc<Mutex<Option<Arc<BondAgent>>>>,
-        outcome: TransitionOutcome,
+        #[cfg(feature = "bond")] bond: &Arc<Mutex<Option<Arc<BondAgent>>>>, outcome: TransitionOutcome,
     ) {
         let mut state_guard = state.lock().expect("state mutex poisoned");
         let in_flight = match state_guard.in_flight {
@@ -451,7 +428,7 @@ impl LifecycleNode {
         };
         if in_flight.transition_id != outcome.transition_id
             || in_flight.start != outcome.start
-            || in_flight.goal != outcome.goal
+            || in_flight.transition != outcome.transition
         {
             return;
         }
@@ -470,18 +447,25 @@ impl LifecycleNode {
             agent.set_active(outcome.goal == State::Active);
         }
 
-        if let Some(pub_) = tev_pub
-            .lock()
-            .expect("transition_event_pub mutex poisoned")
-            .as_ref()
-        {
-            let evt = utils::make_transition_event(
-                outcome.start,
-                outcome.goal,
-                outcome.transition_id,
-                outcome.label,
-            );
+        if let Some(pub_) = tev_pub.lock().expect("transition_event_pub mutex poisoned").as_ref() {
+            let evt = utils::make_transition_event(outcome.start, outcome.goal, outcome.transition_id, outcome.label);
             let _ = pub_.publish(evt);
+        }
+    }
+
+    fn compute_outcome(in_flight: TransitionInFlight) -> TransitionOutcome {
+        let result = utils::transition_result_for(in_flight.transition);
+        let on_error =
+            if result == CallbackResult::Error { Some(utils::on_error_result_for(in_flight.transition)) } else { None };
+        let goal = finish_with_error_handling(in_flight.intermediate, in_flight.transition, result, on_error)
+            .unwrap_or(in_flight.start);
+
+        TransitionOutcome {
+            start: in_flight.start,
+            goal,
+            transition: in_flight.transition,
+            transition_id: in_flight.transition_id,
+            label: in_flight.label,
         }
     }
 }
@@ -489,7 +473,8 @@ impl LifecycleNode {
 #[derive(Debug, Clone, Copy)]
 struct TransitionInFlight {
     start: State,
-    goal: State,
+    intermediate: State,
+    transition: Transition,
     transition_id: u8,
     label: &'static str,
 }
@@ -498,6 +483,7 @@ struct TransitionInFlight {
 struct TransitionOutcome {
     start: State,
     goal: State,
+    transition: Transition,
     transition_id: u8,
     label: &'static str,
 }
@@ -510,9 +496,6 @@ struct LifecycleState {
 
 impl LifecycleState {
     fn new() -> Self {
-        Self {
-            state: State::Unconfigured,
-            in_flight: None,
-        }
+        Self { state: State::Unconfigured, in_flight: None }
     }
 }

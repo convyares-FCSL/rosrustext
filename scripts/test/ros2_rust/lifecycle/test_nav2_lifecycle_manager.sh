@@ -221,7 +221,10 @@ NODE_PID=$!
 popd >/dev/null
 
 cleanup() {
-  if [[ -n "${NAV2_PID:-}" ]]; then
+  if [[ -n "${NAV2_PGID:-}" ]]; then
+    kill -INT -- "-${NAV2_PGID}" >/dev/null 2>&1 || true
+    wait "${NAV2_PGID}" >/dev/null 2>&1 || true
+  elif [[ -n "${NAV2_PID:-}" ]]; then
     kill "${NAV2_PID}" >/dev/null 2>&1 || true
     wait "${NAV2_PID}" >/dev/null 2>&1 || true
   fi
@@ -244,9 +247,16 @@ if ! wait_for_node "${NODE_NAME}" "${NODE_START_TIMEOUT}"; then
 fi
 
 echo "== start nav2 lifecycle manager =="
-ros2 run nav2_lifecycle_manager lifecycle_manager \
-  --ros-args -p node_names:="['ros2_rust_lifecycle_gate_minimal']" -p autostart:=True &
-NAV2_PID=$!
+if command -v setsid >/dev/null 2>&1; then
+  setsid ros2 run nav2_lifecycle_manager lifecycle_manager \
+    --ros-args -p node_names:="['ros2_rust_lifecycle_gate_minimal']" -p autostart:=True &
+  NAV2_PGID=$!
+  NAV2_PID=$!
+else
+  ros2 run nav2_lifecycle_manager lifecycle_manager \
+    --ros-args -p node_names:="['ros2_rust_lifecycle_gate_minimal']" -p autostart:=True &
+  NAV2_PID=$!
+fi
 
 if ! wait_for_active_state "${NAV2_WAIT_TIMEOUT}"; then
   fail "node did not reach Active [3] within ${NAV2_WAIT_TIMEOUT}s"
