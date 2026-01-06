@@ -24,18 +24,11 @@ pub fn transition_graph() -> Result<TransitionGraph> {
     for state in ALL_STATES {
         for transition in available_transitions(state) {
             let goal = goal_state_for_transition(state, *transition)?;
-            transitions.push(TransitionEdge {
-                start: state,
-                transition: *transition,
-                goal,
-            });
+            transitions.push(TransitionEdge { start: state, transition: *transition, goal });
         }
     }
 
-    Ok(TransitionGraph {
-        states: ALL_STATES.to_vec(),
-        transitions,
-    })
+    Ok(TransitionGraph { states: ALL_STATES.to_vec(), transitions })
 }
 
 #[cfg(test)]
@@ -60,9 +53,10 @@ mod tests {
 
         for (start, transition, goal) in expected {
             assert!(
-                graph.transitions.iter().any(|edge| {
-                    edge.start == start && edge.transition == transition && edge.goal == goal
-                }),
+                graph
+                    .transitions
+                    .iter()
+                    .any(|edge| { edge.start == start && edge.transition == transition && edge.goal == goal }),
                 "missing edge {start:?} -> {transition:?} -> {goal:?}"
             );
         }

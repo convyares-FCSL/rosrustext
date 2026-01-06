@@ -13,9 +13,7 @@ pub struct ActivationGate {
 
 impl ActivationGate {
     pub const fn new() -> Self {
-        Self {
-            active: AtomicBool::new(false),
-        }
+        Self { active: AtomicBool::new(false) }
     }
 
     pub fn activate(&self) {

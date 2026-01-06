@@ -5,9 +5,7 @@ use std::time::Duration;
 
 use rosrustext_core::lifecycle::{State as CoreState, Transition};
 use rosrustext_lifecycle_proxy::bond::Status as BondStatus;
-use rosrustext_lifecycle_proxy::bond_agent::{
-    bond_active_for_state, set_bond_active, BondAgent, BondPublisher,
-};
+use rosrustext_lifecycle_proxy::bond_agent::{bond_active_for_state, set_bond_active, BondAgent, BondPublisher};
 use rosrustext_lifecycle_proxy::proxy_state::ProxyLifecycle;
 use rosrustext_roslibrust::lifecycle::{ros_state_id, ros_transition_id};
 use tokio::sync::mpsc;
@@ -20,8 +18,7 @@ impl BondPublisher for TestPublisher {
     type Error = String;
 
     fn publish<'a>(
-        &'a self,
-        msg: &'a BondStatus,
+        &'a self, msg: &'a BondStatus,
     ) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send + 'a>> {
         let tx = self.tx.clone();
         let active = msg.active;
@@ -37,21 +34,14 @@ fn optimistic_state_updates_and_reconciles() {
     let mut proxy = ProxyLifecycle::new(CoreState::Unconfigured);
     let transition_id = ros_transition_id(CoreState::Unconfigured, Transition::Configure).unwrap();
 
-    let plan = proxy
-        .begin_change(Transition::Configure, transition_id)
-        .expect("begin_change should succeed");
+    let plan = proxy.begin_change(Transition::Configure, transition_id).expect("begin_change should succeed");
 
     assert_eq!(proxy.state(), CoreState::Configuring);
     assert_eq!(proxy.reported_state(), CoreState::Inactive);
-    assert_eq!(
-        plan.expected_goal_state_id,
-        Some(ros_state_id(CoreState::Inactive))
-    );
+    assert_eq!(plan.expected_goal_state_id, Some(ros_state_id(CoreState::Inactive)));
 
     let goal_id = ros_state_id(CoreState::Inactive);
-    proxy
-        .record_event(transition_id, goal_id, plan.last_stamp_before + 1)
-        .unwrap();
+    proxy.record_event(transition_id, goal_id, plan.last_stamp_before + 1).unwrap();
 
     let outcome = proxy.confirm_or_timeout(plan);
     assert!(outcome.ok);
@@ -65,9 +55,7 @@ fn timeout_reverts_state_and_warns() {
     let mut proxy = ProxyLifecycle::new(CoreState::Unconfigured);
     let transition_id = ros_transition_id(CoreState::Unconfigured, Transition::Configure).unwrap();
 
-    let plan = proxy
-        .begin_change(Transition::Configure, transition_id)
-        .expect("begin_change should succeed");
+    let plan = proxy.begin_change(Transition::Configure, transition_id).expect("begin_change should succeed");
 
     let outcome = proxy.confirm_or_timeout(plan);
     assert!(!outcome.ok);
@@ -81,28 +69,17 @@ fn back_to_back_transitions_confirm_independently() {
     let mut proxy = ProxyLifecycle::new(CoreState::Unconfigured);
 
     let configure_id = ros_transition_id(CoreState::Unconfigured, Transition::Configure).unwrap();
-    let configure_plan = proxy
-        .begin_change(Transition::Configure, configure_id)
-        .expect("configure begin should succeed");
+    let configure_plan =
+        proxy.begin_change(Transition::Configure, configure_id).expect("configure begin should succeed");
     let inactive_id = ros_state_id(CoreState::Inactive);
-    proxy
-        .record_event(
-            configure_id,
-            inactive_id,
-            configure_plan.last_stamp_before + 1,
-        )
-        .unwrap();
+    proxy.record_event(configure_id, inactive_id, configure_plan.last_stamp_before + 1).unwrap();
     let configure_outcome = proxy.confirm_or_timeout(configure_plan);
     assert!(configure_outcome.ok);
 
     let activate_id = ros_transition_id(CoreState::Inactive, Transition::Activate).unwrap();
-    let activate_plan = proxy
-        .begin_change(Transition::Activate, activate_id)
-        .expect("activate begin should succeed");
+    let activate_plan = proxy.begin_change(Transition::Activate, activate_id).expect("activate begin should succeed");
     let active_id = ros_state_id(CoreState::Active);
-    proxy
-        .record_event(activate_id, active_id, activate_plan.last_stamp_before + 1)
-        .unwrap();
+    proxy.record_event(activate_id, active_id, activate_plan.last_stamp_before + 1).unwrap();
     let activate_outcome = proxy.confirm_or_timeout(activate_plan);
     assert!(activate_outcome.ok);
     assert_eq!(proxy.state(), CoreState::Active);
@@ -120,12 +97,8 @@ fn bond_active_for_state_only_when_active() {
 async fn bond_agent_publishes_heartbeat_and_stop() {
     let (tx, mut rx) = mpsc::unbounded_channel();
     let publisher = Arc::new(TestPublisher { tx });
-    let agent = Arc::new(BondAgent::new(
-        publisher,
-        "demo".to_string(),
-        Duration::from_millis(15),
-        Duration::from_millis(120),
-    ));
+    let agent =
+        Arc::new(BondAgent::new(publisher, "demo".to_string(), Duration::from_millis(15), Duration::from_millis(120)));
 
     agent.clone().spawn();
     agent.set_active(true);
@@ -155,12 +128,8 @@ async fn bond_agent_publishes_heartbeat_and_stop() {
 async fn set_bond_active_toggles_agent_state() {
     let (tx, _rx) = mpsc::unbounded_channel();
     let publisher = Arc::new(TestPublisher { tx });
-    let agent = Arc::new(BondAgent::new(
-        publisher,
-        "demo".to_string(),
-        Duration::from_millis(50),
-        Duration::from_millis(200),
-    ));
+    let agent =
+        Arc::new(BondAgent::new(publisher, "demo".to_string(), Duration::from_millis(50), Duration::from_millis(200)));
 
     let handle = Some(agent.clone());
     set_bond_active(&handle, true);

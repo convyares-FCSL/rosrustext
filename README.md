@@ -12,7 +12,7 @@ The long-term objective is:
 
 Supported libraries (both are very good):
 * RosLibRust : https://github.com/RosLibRust/roslibrust
-* Ros2_Rust : https://github.com/ros2-rust/ros2_rust
+* ros2_rust / rclrs : https://github.com/ros2-rust/ros2_rust
 
 Lifecycle support is the **first completed feature**, not the end goal.
 
@@ -56,7 +56,7 @@ This creates a gap:
 A user should be able to:
 
 * Write a Rust node
-* Choose a Rust ROS adapter (`roslibrust`, `ros2_rust`, etc.)
+* Choose a Rust ROS adapter (`roslibrust`, `rosrs`, etc.)
 * Drop that node into an existing ROS 2 system
 * Use:
 
@@ -136,13 +136,13 @@ Adapters map the core semantics onto specific Rust ROS stacks.
   * Bond heartbeat
   * Transition graph service
 
-#### `rosrustext_ros2_rust` *(planned)*
+#### `rosrustext_rosrs` *(complete, dev_ws only)*
 
-* Uses native RCL bindings
-* Same lifecycle surface
-* Same tests
-* Same semantics
-* Different transport constraints
+* Uses native RCL bindings (`rclrs`)
+* Lifecycle services + `transition_event`
+* Bond heartbeat behind feature `bond` (Nav2 QoS)
+* Transition graph behind feature `transition_graph` (custom interface)
+* **Not publishable** (ROS msg crates come from a colcon dev workspace)
 
 Adapters are **replaceable**, not competing.
 
@@ -159,6 +159,7 @@ Lifecycle is the first feature implemented end-to-end because it is:
 
 Current lifecycle support includes:
 
+**roslibrust adapter**
 * All standard ROS 2 lifecycle services
 * Transition events
 * Transition graph introspection
@@ -171,7 +172,12 @@ Current lifecycle support includes:
   * Python lifecycle manager
   * Nav2 lifecycle manager (C++)
 
-Lifecycle is for rcllibrust is **DONE**, for rc2rust is **WIP**.
+**rosrs adapter (rclrs, Jazzy)**
+* Lifecycle services + `transition_event` (success/failure/error)
+* Busy rejection + non-blocking ChangeState timing contract
+* Bond heartbeat (feature `bond`, Nav2 QoS)
+* Transition graph (feature `transition_graph`)
+* Verified with CLI + Nav2 smoke scripts in dev_ws
 
 ---
 
@@ -193,11 +199,35 @@ Testing is layered by intent:
 Shell scripts are intentional:
 they test **real ROS behavior**, not mocked APIs.
 
+### How to run tests
+
+Core-only (no dev_ws):
+
+```bash
+cargo fmt --all -- --check
+cargo clippy -p rosrustext_core -- -D warnings
+cargo test -p rosrustext_core
+```
+
+roslibrust adapter (from repo root, ROS sourced):
+
+```bash
+./scripts/test/run_all_tests.sh
+```
+
+rosrs adapter system tests (from dev_ws, ROS sourced):
+
+```bash
+~/fcsl/rosrustext/scripts/test/ros2_rust/run_all_tests.sh
+```
+
+Note: ChangeState timing tests use an rclpy client to avoid `ros2` CLI startup overhead.
+
 ---
 
 ## What this project is *not*
 
-* ❌ A replacement for `rclcpp`, `rclpy`, `roslibrust`or , `ros2_rust`.
+* ❌ A replacement for `rclcpp`, `rclpy`, `roslibrust`, or `ros2_rust`.
 * ❌ A single Rust ROS client library
 * ❌ A macro-driven abstraction layer
 * ❌ A green-field ROS reimplementation
@@ -208,11 +238,25 @@ This is about **compatibility, correctness, and confidence**.
 
 ## Status
 
-* Lifecycle parity: **complete**
+* Lifecycle parity (roslibrust): **complete**
 * roslibrust adapter: **complete**
-* Nav2 compatibility: **verified**
-* ros2_rust adapter: **next**
+* Nav2 compatibility (roslibrust): **verified**
+* rosrs adapter (lifecycle): **complete (dev_ws only)**
 * Actions, parameters, execution: **planned**
+
+---
+
+## Crates.io / Publishing
+
+Published or publish-ready:
+
+* `rosrustext_core`
+* `rosrustext_roslibrust`
+
+Not published:
+
+* `rosrustext_rosrs` (dev_ws only; depends on ROS msg crates generated in colcon)
+* ROS msg crates (`lifecycle_msgs`, `bond`, `rosrustext_interfaces`) used by the dev_ws overlay
 
 See `TODO.md` and parity documents for tracked work.
 

@@ -54,10 +54,7 @@ pub fn begin(current: State, via: Transition) -> Result<State> {
         (s, Shutdown) if s != Finalized => ShuttingDown,
 
         _ => {
-            return Err(CoreError::invalid_transition_lifecycle(
-                current.id(),
-                via.id(),
-            ));
+            return Err(CoreError::invalid_transition_lifecycle(current.id(), via.id()));
         }
     };
 
@@ -99,10 +96,7 @@ pub fn finish(intermediate: State, via: Transition, result: CallbackResult) -> R
         (ShuttingDown, Shutdown, _) => Finalized,
 
         _ => {
-            return Err(CoreError::invalid_transition_lifecycle(
-                intermediate.id(),
-                via.id(),
-            ));
+            return Err(CoreError::invalid_transition_lifecycle(intermediate.id(), via.id()));
         }
     };
 
@@ -111,10 +105,7 @@ pub fn finish(intermediate: State, via: Transition, result: CallbackResult) -> R
 
 /// Finish a transition and apply ErrorProcessing recovery semantics.
 pub fn finish_with_error_handling(
-    intermediate: State,
-    via: Transition,
-    result: CallbackResult,
-    on_error_result: Option<CallbackResult>,
+    intermediate: State, via: Transition, result: CallbackResult, on_error_result: Option<CallbackResult>,
 ) -> Result<State> {
     let final_state = finish(intermediate, via, result)?;
 
@@ -146,11 +137,7 @@ pub fn finish_with_error_handling(
 /// - In that case, `on_error()` is invoked and recovery is applied:
 ///   - Success -> Unconfigured
 ///   - Failure/Error -> Finalized
-pub fn drive(
-    current: State,
-    via: Transition,
-    callbacks: &mut dyn LifecycleCallbacks,
-) -> Result<(State, State)> {
+pub fn drive(current: State, via: Transition, callbacks: &mut dyn LifecycleCallbacks) -> Result<(State, State)> {
     let intermediate = begin(current, via)?;
 
     // Execute the transition callback
@@ -162,11 +149,7 @@ pub fn drive(
         Transition::Shutdown => callbacks.on_shutdown(),
     };
 
-    let on_error_result = if result == CallbackResult::Error {
-        Some(callbacks.on_error())
-    } else {
-        None
-    };
+    let on_error_result = if result == CallbackResult::Error { Some(callbacks.on_error()) } else { None };
     let final_state = finish_with_error_handling(intermediate, via, result, on_error_result)?;
 
     Ok((intermediate, final_state))
@@ -194,9 +177,7 @@ pub fn available_transitions(state: State) -> &'static [Transition] {
         Active => &[Deactivate, Shutdown],
         Finalized => &[],
         // Transition states: no external transitions while busy
-        Configuring | CleaningUp | Activating | Deactivating | ShuttingDown | ErrorProcessing => {
-            &[]
-        }
+        Configuring | CleaningUp | Activating | Deactivating | ShuttingDown | ErrorProcessing => &[],
     }
 }
 
@@ -218,10 +199,7 @@ mod tests {
 
     impl Default for TestCallbacks {
         fn default() -> Self {
-            Self {
-                on_configure: CallbackResult::Success,
-                on_error: CallbackResult::Success,
-            }
+            Self { on_configure: CallbackResult::Success, on_error: CallbackResult::Success }
         }
     }
 
@@ -253,10 +231,7 @@ mod tests {
         assert_eq!(e.domain, Domain::Lifecycle);
 
         match e.payload {
-            Payload::LifecycleTransition {
-                from_state,
-                via_transition,
-            } => {
+            Payload::LifecycleTransition { from_state, via_transition } => {
                 assert_eq!(from_state, State::Active.id());
                 assert_eq!(via_transition, Transition::Cleanup.id());
             }
@@ -284,10 +259,7 @@ mod tests {
 
     #[test]
     fn drive_error_path_goes_through_error_processing() {
-        let mut cb = TestCallbacks {
-            on_configure: CallbackResult::Error,
-            ..TestCallbacks::default()
-        };
+        let mut cb = TestCallbacks { on_configure: CallbackResult::Error, ..TestCallbacks::default() };
         let (mid, end) = drive(State::Unconfigured, Transition::Configure, &mut cb).unwrap();
         assert_eq!(mid, State::Configuring);
         assert_eq!(end, State::Unconfigured);
@@ -295,10 +267,7 @@ mod tests {
 
     #[test]
     fn error_processing_failure_finalizes() {
-        let mut cb = TestCallbacks {
-            on_configure: CallbackResult::Error,
-            on_error: CallbackResult::Failure,
-        };
+        let mut cb = TestCallbacks { on_configure: CallbackResult::Error, on_error: CallbackResult::Failure };
         let (_mid, end) = drive(State::Unconfigured, Transition::Configure, &mut cb).unwrap();
         assert_eq!(end, State::Finalized);
     }
@@ -337,11 +306,7 @@ mod tests {
     }
 
     impl ScenarioCallbacks {
-        fn for_transition(
-            transition: Transition,
-            result: CallbackResult,
-            on_error: CallbackResult,
-        ) -> Self {
+        fn for_transition(transition: Transition, result: CallbackResult, on_error: CallbackResult) -> Self {
             let mut cb = Self {
                 configure: CallbackResult::Success,
                 activate: CallbackResult::Success,
@@ -382,12 +347,7 @@ mod tests {
         }
     }
 
-    fn drive_once(
-        start: State,
-        transition: Transition,
-        result: CallbackResult,
-        on_error: CallbackResult,
-    ) -> State {
+    fn drive_once(start: State, transition: Transition, result: CallbackResult, on_error: CallbackResult) -> State {
         let mut cb = ScenarioCallbacks::for_transition(transition, result, on_error);
         let (_mid, end) = drive(start, transition, &mut cb).unwrap();
         end
@@ -396,11 +356,7 @@ mod tests {
     #[test]
     fn failure_paths_return_to_previous_state() {
         let cases = [
-            (
-                State::Unconfigured,
-                Transition::Configure,
-                State::Unconfigured,
-            ),
+            (State::Unconfigured, Transition::Configure, State::Unconfigured),
             (State::Inactive, Transition::Activate, State::Inactive),
             (State::Active, Transition::Deactivate, State::Active),
             (State::Inactive, Transition::Cleanup, State::Inactive),
@@ -408,12 +364,7 @@ mod tests {
         ];
 
         for (start, transition, expected) in cases {
-            let end = drive_once(
-                start,
-                transition,
-                CallbackResult::Failure,
-                CallbackResult::Success,
-            );
+            let end = drive_once(start, transition, CallbackResult::Failure, CallbackResult::Success);
             assert_eq!(end, expected);
         }
     }
@@ -421,11 +372,7 @@ mod tests {
     #[test]
     fn error_paths_follow_error_processing_rules() {
         let cases = [
-            (
-                State::Unconfigured,
-                Transition::Configure,
-                State::Unconfigured,
-            ),
+            (State::Unconfigured, Transition::Configure, State::Unconfigured),
             (State::Inactive, Transition::Activate, State::Unconfigured),
             (State::Active, Transition::Deactivate, State::Unconfigured),
             (State::Inactive, Transition::Cleanup, State::Unconfigured),
@@ -433,12 +380,7 @@ mod tests {
         ];
 
         for (start, transition, expected) in cases {
-            let end = drive_once(
-                start,
-                transition,
-                CallbackResult::Error,
-                CallbackResult::Success,
-            );
+            let end = drive_once(start, transition, CallbackResult::Error, CallbackResult::Success);
             assert_eq!(end, expected);
         }
     }

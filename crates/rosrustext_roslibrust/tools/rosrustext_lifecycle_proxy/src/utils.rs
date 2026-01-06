@@ -41,59 +41,42 @@ pub fn transport_error(context: &'static str, err: roslibrust::Error) -> CoreErr
         .domain(Domain::Transport)
         .kind(ErrorKind::Transport)
         .msgf(format_args!("{context}: {err}"))
-        .payload(Payload::Context {
-            key: "where",
-            value: context.into(),
-        })
+        .payload(Payload::Context { key: "where", value: context.into() })
         .build()
 }
 
 pub fn lock_state<'a>(
-    state: &'a Arc<Mutex<CoreState>>,
-    where_ctx: &'static str,
+    state: &'a Arc<Mutex<CoreState>>, where_ctx: &'static str,
 ) -> CoreResult<MutexGuard<'a, CoreState>> {
     state.lock().map_err(|_| {
         CoreError::error()
             .domain(Domain::Lifecycle)
             .kind(ErrorKind::InvalidState)
             .msg("lifecycle state mutex poisoned")
-            .payload(Payload::Context {
-                key: "where",
-                value: where_ctx.into(),
-            })
+            .payload(Payload::Context { key: "where", value: where_ctx.into() })
             .build()
     })
 }
 
 pub fn ros_state(state: CoreState) -> lifecycle_msgs::State {
-    lifecycle_msgs::State {
-        id: ros_state_id(state),
-        label: state.label().to_string(),
-    }
+    lifecycle_msgs::State { id: ros_state_id(state), label: state.label().to_string() }
 }
 
 pub fn ros_transition_description(
-    start: CoreState,
-    transition: Transition,
+    start: CoreState, transition: Transition,
 ) -> CoreResult<lifecycle_msgs::TransitionDescription> {
     let ros_id = ros_transition_id(start, transition).ok_or_else(|| {
         CoreError::warn()
             .domain(Domain::Lifecycle)
             .kind(ErrorKind::InvalidTransition)
             .msg("no ROS transition id for state")
-            .payload(Payload::LifecycleTransition {
-                from_state: start.id(),
-                via_transition: transition.id(),
-            })
+            .payload(Payload::LifecycleTransition { from_state: start.id(), via_transition: transition.id() })
             .build()
     })?;
     let goal_state = goal_state_for_transition(start, transition)?;
 
     Ok(lifecycle_msgs::TransitionDescription {
-        transition: lifecycle_msgs::Transition {
-            id: ros_id,
-            label: transition.label().to_string(),
-        },
+        transition: lifecycle_msgs::Transition { id: ros_id, label: transition.label().to_string() },
         start_state: ros_state(start),
         goal_state: ros_state(goal_state),
     })
@@ -106,20 +89,13 @@ mod tests {
 
     #[test]
     fn frontend_and_backend_paths_format_correctly() {
-        assert_eq!(
-            frontend_service("demo", SERVICE_CHANGE_STATE),
-            "/demo/change_state"
-        );
-        assert_eq!(
-            backend_path("demo", SERVICE_CHANGE_STATE),
-            "/demo/_rosrustext/change_state"
-        );
+        assert_eq!(frontend_service("demo", SERVICE_CHANGE_STATE), "/demo/change_state");
+        assert_eq!(backend_path("demo", SERVICE_CHANGE_STATE), "/demo/_rosrustext/change_state");
     }
 
     #[test]
     fn transition_description_contains_ros_ids() {
-        let desc =
-            ros_transition_description(CoreState::Unconfigured, Transition::Configure).unwrap();
+        let desc = ros_transition_description(CoreState::Unconfigured, Transition::Configure).unwrap();
 
         assert_eq!(desc.transition.id, ros_ids::TRANSITION_CONFIGURE);
         assert_eq!(desc.start_state.label, "Unconfigured");

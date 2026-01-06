@@ -47,10 +47,7 @@ impl State {
 
     /// True for stable (externally targetable) states.
     pub const fn is_primary(self) -> bool {
-        matches!(
-            self,
-            State::Unconfigured | State::Inactive | State::Active | State::Finalized
-        )
+        matches!(self, State::Unconfigured | State::Inactive | State::Active | State::Finalized)
     }
 
     /// True for intermediate states entered while callbacks are running.

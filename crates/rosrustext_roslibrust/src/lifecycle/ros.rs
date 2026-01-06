@@ -46,10 +46,7 @@ const ROS_STATE_IDS: [u8; 10] = [
 ];
 
 fn state_index(state: State) -> usize {
-    ALL_STATES
-        .iter()
-        .position(|s| *s == state)
-        .expect("ALL_STATES is missing a lifecycle state")
+    ALL_STATES.iter().position(|s| *s == state).expect("ALL_STATES is missing a lifecycle state")
 }
 
 /// Map a ROS lifecycle transition ID into the core semantic Transition.
@@ -87,10 +84,7 @@ pub fn ros_state_id(state: State) -> u8 {
 
 /// Map a ROS2 lifecycle state ID to a core lifecycle state.
 pub fn state_from_ros_id(id: u8) -> Option<State> {
-    ROS_STATE_IDS
-        .iter()
-        .position(|value| *value == id)
-        .and_then(|idx| ALL_STATES.get(idx).copied())
+    ROS_STATE_IDS.iter().position(|value| *value == id).and_then(|idx| ALL_STATES.get(idx).copied())
 }
 
 /// Get the correct ROS2 lifecycle transition ID for a transition from a given state.
@@ -116,34 +110,16 @@ mod tests {
 
     #[test]
     fn transition_from_ros_id_maps_shutdown_variants() {
-        assert_eq!(
-            transition_from_ros_id(ros_ids::TRANSITION_UNCONFIGURED_SHUTDOWN),
-            Some(Transition::Shutdown)
-        );
-        assert_eq!(
-            transition_from_ros_id(ros_ids::TRANSITION_INACTIVE_SHUTDOWN),
-            Some(Transition::Shutdown)
-        );
-        assert_eq!(
-            transition_from_ros_id(ros_ids::TRANSITION_ACTIVE_SHUTDOWN),
-            Some(Transition::Shutdown)
-        );
+        assert_eq!(transition_from_ros_id(ros_ids::TRANSITION_UNCONFIGURED_SHUTDOWN), Some(Transition::Shutdown));
+        assert_eq!(transition_from_ros_id(ros_ids::TRANSITION_INACTIVE_SHUTDOWN), Some(Transition::Shutdown));
+        assert_eq!(transition_from_ros_id(ros_ids::TRANSITION_ACTIVE_SHUTDOWN), Some(Transition::Shutdown));
     }
 
     #[test]
     fn shutdown_ros_id_for_state_maps_primary_states() {
-        assert_eq!(
-            shutdown_ros_id_for_state(State::Active),
-            Some(ros_ids::TRANSITION_ACTIVE_SHUTDOWN)
-        );
-        assert_eq!(
-            shutdown_ros_id_for_state(State::Inactive),
-            Some(ros_ids::TRANSITION_INACTIVE_SHUTDOWN)
-        );
-        assert_eq!(
-            shutdown_ros_id_for_state(State::Unconfigured),
-            Some(ros_ids::TRANSITION_UNCONFIGURED_SHUTDOWN)
-        );
+        assert_eq!(shutdown_ros_id_for_state(State::Active), Some(ros_ids::TRANSITION_ACTIVE_SHUTDOWN));
+        assert_eq!(shutdown_ros_id_for_state(State::Inactive), Some(ros_ids::TRANSITION_INACTIVE_SHUTDOWN));
+        assert_eq!(shutdown_ros_id_for_state(State::Unconfigured), Some(ros_ids::TRANSITION_UNCONFIGURED_SHUTDOWN));
         assert_eq!(shutdown_ros_id_for_state(State::Finalized), None);
         assert_eq!(shutdown_ros_id_for_state(State::Configuring), None);
     }

@@ -17,10 +17,8 @@ use crate::utils::log_core_error;
 pub trait BondPublisher: Send + Sync + 'static {
     type Error: fmt::Display + Send + Sync + 'static;
 
-    fn publish<'a>(
-        &'a self,
-        msg: &'a BondStatus,
-    ) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send + 'a>>;
+    fn publish<'a>(&'a self, msg: &'a BondStatus)
+        -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send + 'a>>;
 }
 
 pub struct BondAgent<P: BondPublisher> {
@@ -33,12 +31,7 @@ pub struct BondAgent<P: BondPublisher> {
 }
 
 impl<P: BondPublisher> BondAgent<P> {
-    pub fn new(
-        status_pub: Arc<P>,
-        id: String,
-        heartbeat_period: Duration,
-        heartbeat_timeout: Duration,
-    ) -> Self {
+    pub fn new(status_pub: Arc<P>, id: String, heartbeat_period: Duration, heartbeat_timeout: Duration) -> Self {
         let instance_id = format!("rosrustext_proxy_{}", now_nanos());
         Self {
             status_pub,
@@ -85,10 +78,7 @@ impl<P: BondPublisher> BondAgent<P> {
     }
 
     pub fn build_status(&self, active: bool) -> BondStatus {
-        let header = StdHeader {
-            stamp: now_time(),
-            ..Default::default()
-        };
+        let header = StdHeader { stamp: now_time(), ..Default::default() };
         BondStatus {
             header,
             id: self.id.clone(),
@@ -115,26 +105,17 @@ fn bond_publish_error<E: fmt::Display>(err: E) -> CoreError {
         .domain(Domain::Transport)
         .kind(ErrorKind::Transport)
         .msgf(format_args!("bond status publish failed: {err}"))
-        .payload(Payload::Context {
-            key: "where",
-            value: "bond status publish failed".into(),
-        })
+        .payload(Payload::Context { key: "where", value: "bond status publish failed".into() })
         .build()
 }
 
 fn now_nanos() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|dur| dur.as_nanos() as u64)
-        .unwrap_or(0)
+    SystemTime::now().duration_since(UNIX_EPOCH).map(|dur| dur.as_nanos() as u64).unwrap_or(0)
 }
 
 fn now_time() -> crate::builtin_interfaces::Time {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|dur| crate::builtin_interfaces::Time {
-            sec: dur.as_secs() as i32,
-            nanosec: dur.subsec_nanos(),
-        })
+        .map(|dur| crate::builtin_interfaces::Time { sec: dur.as_secs() as i32, nanosec: dur.subsec_nanos() })
         .unwrap_or_default()
 }

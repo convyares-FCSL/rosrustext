@@ -1,0 +1,40 @@
+{
+  "folders": [
+    {
+      "name": "rosrustext (library)",
+      "path": "/home/ecm/fcsl/rosrustext"
+    },
+    {
+      "name": "rosrustext_dev_ws (colcon)",
+      "path": "/home/ecm/fcsl/rosrustext_dev_ws"
+    }
+  ],
+  "settings": {
+    "files.exclude": {
+      "**/target": true,
+      "**/build": true,
+      "**/install": true,
+      "**/log": true,
+      "**/.cargo": true,
+      "**/.venv": true
+    },
+    "search.exclude": {
+      "**/target": true,
+      "**/build": true,
+      "**/install": true,
+      "**/log": true,
+      "**/.cargo": true,
+      "**/.venv": true
+    },
+    "rust-analyzer.checkOnSave.command": "clippy",
+    "rust-analyzer.cargo.allFeatures": true,
+    "editor.formatOnSave": true,
+    "ROS2.distro": "jazzy",
+    "python.autoComplete.extraPaths": [
+      "/opt/ros/jazzy/lib/python3.12/site-packages"
+    ],
+    "python.analysis.extraPaths": [
+      "/opt/ros/jazzy/lib/python3.12/site-packages"
+    ]
+  }
+}

@@ -1,9 +1,7 @@
 use std::collections::HashMap;
 
 use rosrustext_core::error::{CoreError, Domain, ErrorKind, Payload, Result as CoreResult};
-use rosrustext_core::lifecycle::{
-    begin, goal_state_for_transition, State as CoreState, Transition,
-};
+use rosrustext_core::lifecycle::{begin, goal_state_for_transition, State as CoreState, Transition};
 use rosrustext_roslibrust::lifecycle::{ros_state_id, state_from_ros_id};
 
 #[derive(Clone, Copy, Debug)]
@@ -35,11 +33,7 @@ pub struct ProxyLifecycle {
 
 impl ProxyLifecycle {
     pub fn new(initial: CoreState) -> Self {
-        Self {
-            state: initial,
-            pending_goal: None,
-            event_map: HashMap::new(),
-        }
+        Self { state: initial, pending_goal: None, event_map: HashMap::new() }
     }
 
     pub fn state(&self) -> CoreState {
@@ -54,11 +48,7 @@ impl ProxyLifecycle {
         self.pending_goal
     }
 
-    pub fn begin_change(
-        &mut self,
-        transition: Transition,
-        transition_id: u8,
-    ) -> CoreResult<ChangePlan> {
+    pub fn begin_change(&mut self, transition: Transition, transition_id: u8) -> CoreResult<ChangePlan> {
         let start_state = match self.state {
             CoreState::Configuring
             | CoreState::CleaningUp
@@ -92,34 +82,13 @@ impl ProxyLifecycle {
             self.pending_goal = Some(goal);
         }
 
-        let last_stamp_before = self
-            .event_map
-            .get(&transition_id)
-            .map(|ev| ev.stamp)
-            .unwrap_or(0);
+        let last_stamp_before = self.event_map.get(&transition_id).map(|ev| ev.stamp).unwrap_or(0);
 
-        Ok(ChangePlan {
-            transition_id,
-            start_state,
-            intermediate_state,
-            expected_goal_state_id,
-            last_stamp_before,
-        })
+        Ok(ChangePlan { transition_id, start_state, intermediate_state, expected_goal_state_id, last_stamp_before })
     }
 
-    pub fn record_event(
-        &mut self,
-        transition_id: u8,
-        goal_state_id: u8,
-        stamp: u64,
-    ) -> CoreResult<CoreState> {
-        self.event_map.insert(
-            transition_id,
-            EventInfo {
-                goal_state_id,
-                stamp,
-            },
-        );
+    pub fn record_event(&mut self, transition_id: u8, goal_state_id: u8, stamp: u64) -> CoreResult<CoreState> {
+        self.event_map.insert(transition_id, EventInfo { goal_state_id, stamp });
 
         let next_state = state_from_ros_id(goal_state_id).ok_or_else(|| {
             CoreError::warn()

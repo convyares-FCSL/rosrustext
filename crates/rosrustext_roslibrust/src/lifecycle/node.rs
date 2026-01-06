@@ -5,15 +5,11 @@ use rosrustext_core::lifecycle::{ActivationGate, LifecycleCallbacks, State};
 
 /// Internal API (wrapper facing).
 #[cfg(any(test, feature = "roslibrust"))]
-use super::dtos::{
-    change_state, get_available_states, get_available_transitions, get_state, get_transition_graph,
-};
+use super::dtos::{change_state, get_available_states, get_available_transitions, get_state, get_transition_graph};
 #[cfg(test)]
 use crate::lifecycle::ros_ids;
 #[cfg(any(test, feature = "roslibrust"))]
-use crate::lifecycle::{
-    ros_state_id, ros_transition_id, shutdown_ros_id_for_state, transition_from_ros_id,
-};
+use crate::lifecycle::{ros_state_id, ros_transition_id, shutdown_ros_id_for_state, transition_from_ros_id};
 #[cfg(any(test, feature = "roslibrust"))]
 use rosrustext_core::lifecycle::ALL_STATES;
 #[cfg(any(test, feature = "roslibrust"))]
@@ -61,10 +57,7 @@ impl LifecycleNode {
     /// Create a new lifecycle node adapter.
     ///
     /// Starts in `Unconfigured` with gate inactive.
-    pub fn new(
-        name: impl Into<String>,
-        callbacks: Box<dyn LifecycleCallbacks + Send>,
-    ) -> Result<Self> {
+    pub fn new(name: impl Into<String>, callbacks: Box<dyn LifecycleCallbacks + Send>) -> Result<Self> {
         let name = name.into();
         if name.is_empty() {
             return Err(CoreError::error()
@@ -114,10 +107,7 @@ impl LifecycleNode {
     /// Internal: apply a ROS transition id to the core lifecycle and update gating.
     ///
     /// Returns (intermediate_state, final_state) as per core drive().
-    pub(crate) fn request_transition_ros(
-        &mut self,
-        ros_transition_id: u8,
-    ) -> Result<(State, State)> {
+    pub(crate) fn request_transition_ros(&mut self, ros_transition_id: u8) -> Result<(State, State)> {
         let transition = transition_from_ros_id(ros_transition_id).ok_or_else(|| {
             CoreError::warn()
                 .domain(Domain::Lifecycle)
@@ -139,7 +129,7 @@ impl LifecycleNode {
 
         // Apply activation policy
         match (current, final_state) {
-            (_, State::Active) => self.gate.activate(), // entering Active => gate on
+            (_, State::Active) => self.gate.activate(),   // entering Active => gate on
             (State::Active, _) => self.gate.deactivate(), // leaving Active => gate off
             _ => {}
         }
@@ -182,24 +172,16 @@ impl LifecycleNode {
 
         let callbacks = self.callbacks.take().expect("callbacks checked");
 
-        Ok(TransitionWork {
-            start_state,
-            intermediate_state,
-            transition,
-            ros_transition_id,
-            callbacks,
-        })
+        Ok(TransitionWork { start_state, intermediate_state, transition, ros_transition_id, callbacks })
     }
 
     #[allow(dead_code)]
     pub(crate) fn complete_transition_ros(
-        &mut self,
-        work: TransitionWork,
-        final_state: State,
+        &mut self, work: TransitionWork, final_state: State,
     ) -> Result<(State, State)> {
         // Apply activation policy
         match (work.start_state, final_state) {
-            (_, State::Active) => self.gate.activate(), // entering Active => gate on
+            (_, State::Active) => self.gate.activate(),   // entering Active => gate on
             (State::Active, _) => self.gate.deactivate(), // leaving Active => gate off
             _ => {}
         }
@@ -228,41 +210,28 @@ impl LifecycleNode {
     }
 
     /// Internal handler for lifecycle `ChangeState` service.
-    pub(crate) fn handle_change_state(
-        &mut self,
-        req: change_state::Request,
-    ) -> change_state::Response {
+    #[allow(dead_code)]
+    pub(crate) fn handle_change_state(&mut self, req: change_state::Request) -> change_state::Response {
         match self.request_transition_ros(req.transition_id) {
-            Ok((_mid, final_state)) => change_state::Response {
-                success: true,
-                message: format!("transition ok -> {final_state:?}"),
-            },
-            Err(e) => change_state::Response {
-                success: false,
-                message: format!("transition failed: {e}"),
-            },
+            Ok((_mid, final_state)) => {
+                change_state::Response { success: true, message: format!("transition ok -> {final_state:?}") }
+            }
+            Err(e) => change_state::Response { success: false, message: format!("transition failed: {e}") },
         }
     }
 
     /// Internal handler for lifecycle `GetState` service.
     pub(crate) fn handle_get_state(&self, _req: get_state::Request) -> get_state::Response {
-        get_state::Response {
-            state_id: self.state.id(),
-            label: format!("{:?}", self.state),
-        }
+        get_state::Response { state_id: self.state.id(), label: format!("{:?}", self.state) }
     }
 
     /// Internal handler for lifecycle `GetAvailableTransitions` service.
     pub(crate) fn handle_get_available_transitions(
-        &self,
-        _req: get_available_transitions::Request,
+        &self, _req: get_available_transitions::Request,
     ) -> get_available_transitions::Response {
         let transitions = available_transitions(self.state)
             .iter()
-            .map(|t| get_available_transitions::Transition {
-                id: t.id(),
-                label: format!("{:?}", t),
-            })
+            .map(|t| get_available_transitions::Transition { id: t.id(), label: format!("{:?}", t) })
             .collect();
 
         get_available_transitions::Response { transitions }
@@ -270,15 +239,11 @@ impl LifecycleNode {
 
     /// Internal handler for lifecycle `GetAvailableStates` service.
     pub(crate) fn handle_get_available_states(
-        &self,
-        _req: get_available_states::Request,
+        &self, _req: get_available_states::Request,
     ) -> get_available_states::Response {
         let states = ALL_STATES
             .into_iter()
-            .map(|s| get_available_states::State {
-                id: s.id(),
-                label: s.label().to_string(),
-            })
+            .map(|s| get_available_states::State { id: s.id(), label: s.label().to_string() })
             .collect();
 
         get_available_states::Response { states }
@@ -286,31 +251,23 @@ impl LifecycleNode {
 
     /// Internal handler for lifecycle `GetTransitionGraph` service.
     pub(crate) fn handle_get_transition_graph(
-        &self,
-        _req: get_transition_graph::Request,
+        &self, _req: get_transition_graph::Request,
     ) -> Result<get_transition_graph::Response> {
         let graph = transition_graph()?;
 
         let states = graph
             .states
             .into_iter()
-            .map(|state| get_transition_graph::State {
-                id: ros_state_id(state),
-                label: state.label().to_string(),
-            })
+            .map(|state| get_transition_graph::State { id: ros_state_id(state), label: state.label().to_string() })
             .collect();
 
         let transitions = graph
             .transitions
             .into_iter()
             .map(|edge| {
-                let id =
-                    ros_transition_id(edge.start, edge.transition).unwrap_or(edge.transition.id());
+                let id = ros_transition_id(edge.start, edge.transition).unwrap_or(edge.transition.id());
                 get_transition_graph::TransitionDescription {
-                    transition: get_transition_graph::Transition {
-                        id,
-                        label: edge.transition.label().to_string(),
-                    },
+                    transition: get_transition_graph::Transition { id, label: edge.transition.label().to_string() },
                     start_state: get_transition_graph::State {
                         id: ros_state_id(edge.start),
                         label: edge.start.label().to_string(),
@@ -323,10 +280,7 @@ impl LifecycleNode {
             })
             .collect();
 
-        Ok(get_transition_graph::Response {
-            states,
-            transitions,
-        })
+        Ok(get_transition_graph::Response { states, transitions })
     }
 
     /// Internal helper: get the correct ROS shutdown ID for the current state.
@@ -369,15 +323,11 @@ mod tests {
     fn ros_transition_configure_then_activate_sets_gate() {
         let mut node = LifecycleNode::new("test_node", Box::new(OkCallbacks)).unwrap();
 
-        let (_mid, s1) = node
-            .request_transition_ros(ros_ids::TRANSITION_CONFIGURE)
-            .unwrap();
+        let (_mid, s1) = node.request_transition_ros(ros_ids::TRANSITION_CONFIGURE).unwrap();
         assert_eq!(s1, State::Inactive);
         assert!(!node.activation_gate().is_active());
 
-        let (_mid, s2) = node
-            .request_transition_ros(ros_ids::TRANSITION_ACTIVATE)
-            .unwrap();
+        let (_mid, s2) = node.request_transition_ros(ros_ids::TRANSITION_ACTIVATE).unwrap();
         assert_eq!(s2, State::Active);
         assert!(node.activation_gate().is_active());
     }
@@ -386,9 +336,7 @@ mod tests {
     fn change_state_handler_success() {
         let mut node = LifecycleNode::new("test_node", Box::new(OkCallbacks)).unwrap();
 
-        let resp = node.handle_change_state(change_state::Request {
-            transition_id: ros_ids::TRANSITION_CONFIGURE,
-        });
+        let resp = node.handle_change_state(change_state::Request { transition_id: ros_ids::TRANSITION_CONFIGURE });
 
         assert!(resp.success);
         assert!(resp.message.contains("Inactive"));
@@ -400,10 +348,7 @@ mod tests {
 
         let resp = node.handle_get_state(get_state::Request);
 
-        assert_eq!(
-            resp.state_id,
-            rosrustext_core::lifecycle::State::Unconfigured.id()
-        );
+        assert_eq!(resp.state_id, rosrustext_core::lifecycle::State::Unconfigured.id());
         assert!(resp.label.contains("Unconfigured"));
     }
 
@@ -411,10 +356,8 @@ mod tests {
     fn get_available_transitions_reports_active_state() {
         let mut node = LifecycleNode::new("test_node", Box::new(OkCallbacks)).unwrap();
 
-        node.request_transition_ros(ros_ids::TRANSITION_CONFIGURE)
-            .unwrap();
-        node.request_transition_ros(ros_ids::TRANSITION_ACTIVATE)
-            .unwrap();
+        node.request_transition_ros(ros_ids::TRANSITION_CONFIGURE).unwrap();
+        node.request_transition_ros(ros_ids::TRANSITION_ACTIVATE).unwrap();
 
         let resp = node.handle_get_available_transitions(get_available_transitions::Request);
 
@@ -426,8 +369,7 @@ mod tests {
     fn get_available_states_reports_all_states() {
         let node = LifecycleNode::new("test_node", Box::new(OkCallbacks)).unwrap();
 
-        let resp =
-            node.handle_get_available_states(crate::lifecycle::dtos::get_available_states::Request);
+        let resp = node.handle_get_available_states(crate::lifecycle::dtos::get_available_states::Request);
 
         assert!(resp.states.iter().any(|s| s.label == "Unconfigured"));
         assert!(resp.states.iter().any(|s| s.label == "Inactive"));
@@ -446,9 +388,7 @@ mod tests {
     fn get_transition_graph_reports_edges() {
         let node = LifecycleNode::new("test_node", Box::new(OkCallbacks)).unwrap();
 
-        let resp = node
-            .handle_get_transition_graph(crate::lifecycle::dtos::get_transition_graph::Request)
-            .unwrap();
+        let resp = node.handle_get_transition_graph(crate::lifecycle::dtos::get_transition_graph::Request).unwrap();
 
         assert!(resp.states.iter().any(|s| s.label == "Unconfigured"));
         assert!(resp.states.iter().any(|s| s.label == "Active"));
@@ -466,8 +406,7 @@ mod tests {
         let mut node = LifecycleNode::new("test_node", Box::new(OkCallbacks)).unwrap();
         let mut rx = node.subscribe_transition_events();
 
-        node.request_transition_ros(ros_ids::TRANSITION_CONFIGURE)
-            .unwrap();
+        node.request_transition_ros(ros_ids::TRANSITION_CONFIGURE).unwrap();
 
         let ev = rx.try_recv().expect("expected transition event");
         assert_eq!(ev.transition_id, ros_ids::TRANSITION_CONFIGURE);

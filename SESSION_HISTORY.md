@@ -211,6 +211,128 @@ for full system validation.
 
 ---
 
+## Session 14 – 2026-01-04 – ros2_rust lifecycle services (rclrs)
+- Implemented minimal lifecycle services in `rosrustext_rosrs`:
+  - `/<node>/get_state`
+  - `/<node>/change_state`
+  - `/<node>/get_available_states`
+  - `/<node>/get_available_transitions`
+- Verified ActivationGate gating behavior in the dev workspace example.
+- Fixed rclrs 0.6 service callback signature requirement:
+  - must use concrete `Request`/`Response` types in the closure signature
+  - `ServiceIDL` Request/Response usage caused `ros2 service call` to hang
+- CLI validation (Jazzy):
+  - `ros2 lifecycle set /ros2_rust_lifecycle_gate_minimal configure` → “Transitioning successful”
+  - `ros2 lifecycle set /ros2_rust_lifecycle_gate_minimal activate` → “Transitioning successful”
+  - `ros2 service call /ros2_rust_lifecycle_gate_minimal/get_state lifecycle_msgs/srv/GetState "{}"`
+    returns `id=2 label='Inactive'` after configure and `id=3 label='Active'` after activate
+- Known caveats: no `transition_event` publisher yet, no `get_transition_graph` service yet,
+  minimal synchronous transition mapping.
+
+Outcome:
+ros2_rust lifecycle services are CLI-compatible in Jazzy with a minimal mapping,
+and the callback signature pitfall is documented.
+
+---
+
+## Session 15 – 2026-01-04 – ros2_rust bond + transition events
+- Implemented transition_event publishing in the ros2_rust adapter:
+  - one event per successful primary transition
+- Confirmed lifecycle-owned entities are retained internally:
+  - services, transition_event, and bond are owned by `LifecycleNode`
+  - applications only instantiate `LifecycleNode` and create gated publishers/timers
+- Added optional bond support to ros2_rust adapter (feature `bond`):
+  - publishes `/bond` (`bond/msg/Status`) with Nav2 QoS
+  - heartbeat period 1s, timeout 4s
+  - active only when lifecycle state is Active; publishes one inactive on deactivation
+- Added/updated dev_ws bond smoke script:
+  - starts the node, runs configure/activate/deactivate
+  - verifies `active=true` and `active=false` bond messages
+  - fixed Jazzy CLI usage (`ros2 topic echo --once`) and added `BOND_VERBOSE=1`
+
+Outcome:
+ros2_rust adapter now emits transition events and bond heartbeats (feature-gated),
+with a reproducible smoke test.
+
+---
+
+## Session 16 – 2026-01-04 – rosrustext_interfaces integration
+- Promoted `rosrustext_interfaces` to a top-level canonical package:
+  - repo path: `interfaces/rosrustext_interfaces`
+  - legacy path preserved via symlink for roslibrust tooling
+- Dev workspace auto-links the interface package in `scripts/source_env.sh`
+  so `colcon build` sees it without manual steps.
+- Added optional `transition_graph` feature to the ros2_rust adapter:
+  - feature gates the `rosrustext_interfaces` dependency
+  - exports the `GetTransitionGraph` service type (service wiring still pending)
+- Added dev_ws Cargo patches for `rosrustext_interfaces` to resolve generated Rust bindings.
+
+Outcome:
+Custom interfaces are shared across adapters with minimal user setup, and
+ros2_rust can opt into the custom service types without breaking default builds.
+
+---
+
+## Session 17 – 2026-01-04 – ros2_rust transition graph + dev_ws smoke coverage
+- Implemented `GetTransitionGraph` service in `rosrustext_rosrs` behind
+  the `transition_graph` feature, returning the static primary state graph.
+- Validated service wiring via the dev workspace lifecycle example.
+- Added dev_ws usage notes + transition graph smoke flow to README.
+- Hardened dev_ws scripts to source ROS setup with nounset-safe guards.
+- Added library-side ros2_rust scripts (CLI, bond, transition graph,
+  Nav2 manager) that run the dev_ws example node and fail fast with timeouts.
+- Updated parity docs and TODO to reflect implemented service + new tests.
+
+Outcome:
+ros2_rust transition graph is verified end-to-end and regression coverage
+exists in the library repo while execution stays in the dev workspace.
+
+---
+
+## Session 18 – 2026-01-04 – ros2_rust smoke suite passes
+- Stabilized ros2_rust test scripts with longer startup/shutdown waits,
+  forced cleanup of stale nodes, and per-test logs.
+- Added a ros2_rust `run_all_tests.sh` wrapper to run the full suite.
+- Verified the full ros2_rust suite passes from dev_ws:
+  - transition graph, lifecycle CLI, bond, and Nav2 manager tests
+- Noted Nav2 `/bond` QoS warning is expected and does not affect results.
+
+Outcome:
+ros2_rust system smoke coverage is stable and passes end-to-end.
+
+---
+
+## Session 19 – 2026-01-04 – ChangeState timing contract
+- Added a deterministic ChangeState timing test that injects a small delay and
+  asserts `change_state` returns quickly while state + transition_event converge.
+- Added a test-only delay hook (`ROSRUSTEXT_RCLRS_CHANGE_STATE_DELAY_MS`) to the
+  ros2_rust adapter to validate initiation semantics without blocking.
+- Updated parity docs to document the response-timing contract and add the test.
+
+Outcome:
+Deferred response semantics are now validated and documented.
+
+---
+
+## Session 20 – 2026-01-05 – Lifecycle parity closure + rosrs rename + workspace split
+- Completed rosrs lifecycle parity:
+  - lifecycle services + transition_event (success/failure/error)
+  - bond heartbeat (Nav2 QoS) and transition_graph (feature-gated)
+  - in-flight transitions + completion pump + deterministic busy rejection
+  - ErrorProcessing mapping with event emission
+- Added/updated dev_ws scripts for timing, busy rejection, failure, and error paths.
+- Renamed adapter crate to `rosrustext_rosrs` and updated dev_ws/example references.
+- Split workspace to keep core crates crates.io-safe:
+  - `rosrustext_rosrs` excluded from root workspace
+  - `rosrustext_rosrs` marked `publish = false`
+- Verified full dev_ws system suite including Nav2 lifecycle manager.
+
+Outcome:
+Lifecycle parity is complete for roslibrust and rosrs (dev_ws), with stable
+system tests and a publishable core workspace.
+
+---
+
 ## Guiding principle
 
 **Model lifecycle truth once, test it in isolation,

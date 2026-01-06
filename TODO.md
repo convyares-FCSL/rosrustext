@@ -1,146 +1,168 @@
-# rosrustext – TODO (ROS2 Parity Oriented)
+# rosrustext – TODO (ROS 2 Parity Oriented)
 
-This list tracks what is required to reach **observable parity**
-with ROS2 lifecycle nodes (`rcl_lifecycle` + `rclcpp_lifecycle`).
+This file tracks work required to reach **observable parity**
+with ROS 2 semantics as exercised by real tooling
+(`ros2 lifecycle`, lifecycle managers, Nav2, launch).
 
-Guiding rule:
-- `rosrustext_core` defines lifecycle truth
-- `rosrustext_roslibrust` adapts that truth to ROS transports
+Guiding rules:
+- `rosrustext_core` defines semantic truth
+- Adapters project that truth into ROS transports
+- Parity is judged by **behavior under ROS tools**, not API shape
 
-This is **not** a reimplementation of rclcpp.
-It is an explicit, testable lifecycle model that can be *controlled by*
-standard ROS2 lifecycle managers.
+Lifecycle is the **first completed feature**, not the final goal.
 
 ---
 
-## Lifecycle – Core (ROS-agnostic)
+## 1. Lifecycle – Core (`rosrustext_core`)
 
 ### State machine
 - [x] Primary states (Unconfigured / Inactive / Active / Finalized)
 - [x] Transition states (Configuring / CleaningUp / Activating / Deactivating / ShuttingDown / ErrorProcessing)
-- [x] Explicit begin → callback → finish pipeline
+- [x] Begin → callback → finish pipeline
 - [x] Callback result model (Success / Failure / Error)
 - [x] ErrorProcessing recovery semantics
 - [x] Deterministic unit tests for all transitions
 
 ### Transition semantics
-- [x] Explicit list of available transitions per state
-- [x] Busy-state rejection (no transitions while transitioning)
-- [x] Shutdown modeled from all primary states
-- [x] ROS transition ID mapping (Configure / Activate / Deactivate / Cleanup / Shutdown)
-
-### Alignment verification
-- [x] Final cross-check against official ROS2 lifecycle diagram (see `docs/spec/lifecycle.md`)
-- [x] Confirm edge cases (shutdown during transition, error escalation) (see `docs/spec/lifecycle.md`)
-- [x] Decide whether CREATE / DESTROY remain wrapper-only (documented in `docs/adapters/roslibrust/lifecycle/parity.md`)
+- [x] Explicit transition table per state
+- [x] Busy-state rejection
+- [x] Shutdown from all primary states
+- [x] ROS transition ID mapping
+- [x] Alignment with official ROS 2 lifecycle diagram
 
 ---
 
-## Lifecycle – Wrapper (ROS-facing)
+## 2. Lifecycle – Adapter: rosrustext_roslibrust (rosbridge)
 
-### Lifecycle node API
-- [x] `LifecycleNode` abstraction
-- [x] Internal state tracking
-- [x] ActivationGate ownership
-- [x] `ChangeState` handler
-- [x] `GetState` handler
-- [x] `GetAvailableTransitions` handler
-- [x] `GetAvailableStates` handler
-- [x] `GetTransitionGraph` handler
-- [x] Lifecycle state change publisher (`/transition_event` equivalent)
+> Reference adapter — establishes parity baseline
 
-### Managed entities
-- [x] Activation-gated publisher
-- [x] Activation-gated timer (tokio-based)
-- [x] Publish suppression when inactive
-- [x] Decide warning vs silent drop policy (silent drop; see `docs/adapters/roslibrust/lifecycle/parity.md`)
+### Lifecycle ROS surface
+- [x] `change_state`
+- [x] `get_state`
+- [x] `get_available_transitions`
+- [x] `get_available_states`
+- [x] `get_transition_graph` (custom interface)
+- [x] `transition_event` publisher
+- [x] `/bond` heartbeat (Nav2 compatible)
 
-### Transport
-- [x] roslibrust integration behind feature flag
-- [x] Transport adapters isolated under `transport::*`
-- [x] ChangeState service via rosbridge
-- [x] Wire remaining lifecycle services via rosbridge (via Rust proxy tool)
-- [x] `ros2 lifecycle set/get` works over rosbridge (proxy)
-- [x] Document rosbridge node name requirement for CLI discovery
-- [x] Document ros2cli interface rendering caveat for broken overlay lifecycle_msgs
-- [x] Verify compatibility with Python lifecycle manager
-- [x] Verify compatibility with C++ lifecycle manager (nav2_lifecycle_manager)
-- [x] Bond heartbeat support for Nav2 lifecycle manager
+### Semantics
+- [x] Activation gating
+- [x] Silent publish suppression when inactive
+- [x] Busy-state rejection
+- [x] ErrorProcessing mapping
+- [x] Deterministic shutdown behavior
 
-### Error & shutdown policy
-- [x] ErrorProcessing recovery delegated to wrapper
-- [x] Best-effort shutdown path implemented
-- [x] Define fatal error shutdown policy (when to force Finalized)
-- [x] Document shutdown semantics vs ROS2 expectations (see `docs/spec/lifecycle.md`)
+### Compatibility validation
+- [x] `ros2 lifecycle` CLI
+- [x] Python lifecycle manager
+- [x] `nav2_lifecycle_manager`
+
+### Testing
+- [x] CLI smoke tests
+- [x] Python manager tests
+- [x] Nav2 bond tests
+- [x] Stress / concurrency tests
+- [x] Proxy-based test harness under `scripts/test/roslibrust`
 
 ---
 
-## Lifecycle – Parity Matrix (Documentation)
+## 3. Lifecycle – Adapter: rosrustext_rosrs (rclrs, dev_ws)
 
-> This section blocks Milestone 6 completion.
+> Native RCL adapter — parity with roslibrust achieved in dev_ws
 
-- [x] Create lifecycle parity table:
-  - Service/topic name
-  - Implemented / Stubbed / Omitted
-  - Notes vs `rclcpp_lifecycle`
-- [x] Explicitly document intentional deviations
-- [x] Confirm “boring compatibility” with lifecycle managers (`scripts/test/roslibrust/lifecycle/test_python_lifecycle_manager.sh`, `scripts/test/roslibrust/lifecycle/test_nav2_bond.sh`, `scripts/test/roslibrust/lifecycle/test_lifecycle_stress.sh`)
+### Lifecycle ROS surface
+- [x] `change_state` (non-blocking semantics validated)
+- [x] `get_state`
+- [x] `get_available_transitions`
+- [x] `get_available_states`
+- [x] `get_transition_graph` (feature-gated)
+- [x] `transition_event` publisher
+- [x] `/bond` heartbeat (feature `bond`, Nav2 QoS)
+
+### Semantics
+- [x] Activation-gated publishers
+- [x] Activation-gated timers
+- [x] Silent publish suppression
+- [x] Busy-state rejection
+- [x] Deterministic ChangeState timing contract
+- [x] Best-effort shutdown handling
+
+### Node model / API parity
+- [x] `LifecycleNode` is the primary node abstraction
+- [x] `LifecycleNode::create(&mut executor, name)`
+- [x] `LifecycleNode::from_node(Arc<Node>)`
+- [x] Explicit escape hatch (`node()` / `node_arc()`)
+- [x] No `Deref<Target = Node>` (policy enforcement)
+
+### Core integration
+- [ ] Replace adapter-owned `Mutex<State>` with `rosrustext_core` state machine
+- [ ] Wire lifecycle callbacks to core (configure / activate / deactivate / cleanup / shutdown)
+
+### Compatibility validation
+- [x] `ros2 lifecycle` CLI
+- [x] Python lifecycle manager
+- [x] `nav2_lifecycle_manager`
+
+### Testing
+- [x] CLI smoke tests (dev_ws-backed)
+- [x] Bond smoke tests
+- [x] Nav2 lifecycle manager tests
+- [x] Transition graph tests
+- [x] ChangeState timing test
+- [x] System test suite under `scripts/test/ros2_rust`
 
 ---
 
-## Actions – Core (future)
+## 4. Cross-cutting lifecycle parity
 
-- [ ] Explicit action protocol state machine
+- [x] Lifecycle parity matrix (services / topics / semantics)
+- [x] Document intentional deviations
+- [x] Document Nav2 bond QoS requirements
+- [x] Shared `rosrustext_interfaces` package
+- [x] Consistent behavior across adapters
+
+---
+
+## 5. Parameters & Execution (future, non-blocking)
+
+> Explicitly **not required** for lifecycle parity
+
+### Parameters
+- [ ] Parameter semantic model (core)
+- [ ] Adapter mapping (roslibrust / rclrs)
+- [ ] Tooling compatibility expectations
+
+### Execution / threading
+- [ ] Executor ownership model
+- [ ] Transition execution policy
+- [ ] Cancellation semantics
+
+---
+
+## 6. Actions (future feature)
+
+### Core
+- [ ] Action protocol state machine
 - [ ] Goal / feedback / result semantics
-- [ ] Cancellation and timeout handling
+- [ ] Cancellation and timeout rules
 - [ ] Deterministic unit tests
 
----
-
-## Actions – Wrapper (future)
-
-- [ ] Map action protocol to ROS2 actions
-- [ ] Ensure compatibility with C++ action clients
-- [ ] Execution and threading policy
+### Adapters
+- [ ] Map core actions to ROS 2 actions
+- [ ] Verify C++ / Python client compatibility
 
 ---
 
-## Infrastructure
-
-- [x] Logging conventions (severity mapping to ROS)
-- [x] Config patterns (deterministic, testable) (see `README.md`)
-- [x] Example lifecycle-managed node (see `docs/examples/lifecycle/minimal.md`)
-- [x] Example showing publisher + timer gating (see `docs/examples/lifecycle/minimal.md`)
-- [x] Rust lifecycle proxy tool (rosbridge)
-- [x] Local run scripts (rosbridge/backend/proxy/lifecycle test)
-- [x] Nav2 bond validation script
-- [x] Rust integration tests for lifecycle contracts (core + proxy + graph)
-- [x] System test aggregator (`scripts/test/run_all_tests.sh`)
-
----
-
-## Naming / Packaging
-
-- [ ] Keep `rosrustext_roslibrust` name stable for now
-- [ ] Consider adding a top-level façade crate later
-  - e.g. `fcsl_ros_rust` or similar
-  - Pure re-export + documentation layer only
-
----
-
-## Definition of Done (Lifecycle)
+## Definition of Done – Lifecycle
 
 Lifecycle is considered **complete** when:
 
 - A Rust node can be controlled by:
-  - `ros2 lifecycle set`
-  - Python lifecycle manager
-  - C++ lifecycle manager
+  - `ros2 lifecycle`
+  - Python lifecycle managers
+  - C++ / Nav2 lifecycle managers
 - All lifecycle services respond correctly
-- `transition_event` is published with valid IDs/labels
+- `transition_event` publishes correct IDs and labels
+- `/bond` satisfies Nav2 expectations
 
----
-
-## Move to dual support (Lifecycle)
-
-Link to example roproject shows 4 (2 rust + CPP + python)
+After this point, lifecycle work moves to **maintenance only**.

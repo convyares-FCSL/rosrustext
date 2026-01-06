@@ -11,8 +11,7 @@ pub trait PublishLike<T>: Send + Sync + 'static {
     type Error: std::error::Error + Send + Sync + 'static;
 
     fn publish<'a>(
-        &'a self,
-        msg: &'a T,
+        &'a self, msg: &'a T,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), Self::Error>> + Send + 'a>>;
 }
 
@@ -35,11 +34,7 @@ where
     P: PublishLike<T>,
 {
     pub fn new(gate: Arc<ActivationGate>, inner: Arc<P>) -> Self {
-        Self {
-            gate,
-            inner,
-            _phantom: std::marker::PhantomData,
-        }
+        Self { gate, inner, _phantom: std::marker::PhantomData }
     }
 
     /// Publish only when the lifecycle gate is active.
@@ -83,9 +78,7 @@ mod tests {
 
     impl DummyPublisher {
         fn new() -> Self {
-            Self {
-                calls: AtomicUsize::new(0),
-            }
+            Self { calls: AtomicUsize::new(0) }
         }
 
         fn calls(&self) -> usize {
@@ -97,10 +90,8 @@ mod tests {
         type Error = DummyError;
 
         fn publish<'a>(
-            &'a self,
-            _msg: &'a String,
-        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), Self::Error>> + Send + 'a>>
-        {
+            &'a self, _msg: &'a String,
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), Self::Error>> + Send + 'a>> {
             Box::pin(async move {
                 self.calls.fetch_add(1, Ordering::Relaxed);
                 Ok(())

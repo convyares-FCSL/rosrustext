@@ -11,8 +11,8 @@ pub use rosrustext_core::lifecycle::{ActivationGate, CallbackResult, LifecycleCa
 // ROS lifecycle IDs/mapping (wrapper side).
 mod ros;
 pub use ros::{
-    goal_state_for_transition, ros_ids, ros_state_id, ros_state_ids, ros_transition_id,
-    shutdown_ros_id_for_state, state_from_ros_id, transition_from_ros_id,
+    goal_state_for_transition, ros_ids, ros_state_id, ros_state_ids, ros_transition_id, shutdown_ros_id_for_state,
+    state_from_ros_id, transition_from_ros_id,
 };
 
 // Lifecycle publisher module.
