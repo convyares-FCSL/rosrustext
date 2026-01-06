@@ -11,6 +11,7 @@
 //! - ROS/rclrs wiring lives here.
 
 pub mod error;
+#[cfg(feature = "lifecycle_msgs")]
 pub mod lifecycle;
 
 // Adapter error type

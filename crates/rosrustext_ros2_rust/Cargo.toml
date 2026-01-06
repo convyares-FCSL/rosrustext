@@ -13,7 +13,7 @@ rosrustext_core = { path = "../rosrustext_core" }
 
 # ROS2 Rust client library (Jazzy dev_ws proven path/patch setup)
 rclrs = "0.6"
-lifecycle_msgs = { version = "*" }
+lifecycle_msgs = { version = "*", optional = true }
 bond = { version = "*", optional = true }
 rosrustext_interfaces = { version = "*", optional = true }
 
@@ -23,8 +23,9 @@ tracing = "0.1"
 
 [features]
 default = []
-bond = ["dep:bond"]
-transition_graph = ["dep:rosrustext_interfaces"]
+lifecycle_msgs = ["dep:lifecycle_msgs"]
+bond = ["dep:bond", "lifecycle_msgs"]
+transition_graph = ["dep:rosrustext_interfaces", "lifecycle_msgs"]
 
 [dev-dependencies]
 # keep empty for now; slice-1 validation lives in rosrustext_dev_ws
