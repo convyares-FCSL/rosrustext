@@ -1,9 +1,12 @@
 [package]
 name = "rosrustext_msgs"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Bundled ROS 2 messages for rosrustext"
 license = "Apache-2.0"
+repository = "https://github.com/convyares-FCSL/rosrustext_fcsl"
+homepage = "https://github.com/convyares-FCSL/rosrustext_fcsl"
+readme = "README.md"
 
 [dependencies]
 # Required by generated code
