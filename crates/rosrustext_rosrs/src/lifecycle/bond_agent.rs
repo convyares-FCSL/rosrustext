@@ -8,7 +8,7 @@ use crate::error::Result;
 
 use rclrs::{IntoPrimitiveOptions, Node, QoSProfile, TimerOptions};
 
-use bond::msg::Status;
+use rosrustext_msgs::bond::msg::Status;
 
 /// Nav2 bond QoS is not optional in practice:
 /// Reliable + TransientLocal + KeepLast(1)

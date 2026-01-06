@@ -1,6 +1,6 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use lifecycle_msgs::msg::{State as RosState, Transition as RosTransition, TransitionDescription, TransitionEvent};
+use rosrustext_msgs::lifecycle_msgs::msg::{State as RosState, Transition as RosTransition, TransitionDescription, TransitionEvent};
 use rosrustext_core::lifecycle::{goal_state_for_transition, CallbackResult, State, Transition};
 
 pub(crate) fn change_state_delay_ms() -> u64 {

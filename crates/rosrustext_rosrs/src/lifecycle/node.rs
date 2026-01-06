@@ -11,8 +11,8 @@ use crate::error::Result;
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::Duration;
 
-use lifecycle_msgs::msg::{TransitionDescription, TransitionEvent};
-use lifecycle_msgs::srv::{ChangeState, GetAvailableStates, GetAvailableTransitions, GetState};
+use rosrustext_msgs::lifecycle_msgs::msg::{TransitionDescription, TransitionEvent};
+use rosrustext_msgs::lifecycle_msgs::srv::{ChangeState, GetAvailableStates, GetAvailableTransitions, GetState};
 
 use rclrs::{
     Client, ClientOptions, Executor, IntoNodeOptions, IntoNodeServiceCallback, IntoNodeSubscriptionCallback, Node,
@@ -23,7 +23,7 @@ use rosrustext_core::lifecycle::{
 };
 
 #[cfg(feature = "transition_graph")]
-use rosrustext_interfaces::srv::GetTransitionGraph;
+use rosrustext_msgs::rosrustext_interfaces::srv::GetTransitionGraph;
 
 #[cfg(feature = "bond")]
 use super::BondAgent;
@@ -229,10 +229,10 @@ impl LifecycleNode {
 
         let svc = self.node.create_service::<GetState, _>(
             &service_name,
-            move |_req: lifecycle_msgs::srv::GetState_Request| {
+            move |_req: rosrustext_msgs::lifecycle_msgs::srv::GetState_Request| {
                 let current = state.lock().expect("state mutex poisoned").state;
 
-                lifecycle_msgs::srv::GetState_Response { current_state: utils::ros_state_msg(current) }
+                rosrustext_msgs::lifecycle_msgs::srv::GetState_Response { current_state: utils::ros_state_msg(current) }
             },
         )?;
 
@@ -255,26 +255,26 @@ impl LifecycleNode {
 
         let svc = self.node.create_service::<ChangeState, _>(
             &service_name,
-            move |req: lifecycle_msgs::srv::ChangeState_Request| {
+            move |req: rosrustext_msgs::lifecycle_msgs::srv::ChangeState_Request| {
                 let transition_id = req.transition.id;
 
                 let delay_ms = utils::change_state_delay_ms();
                 let mut state_guard = state.lock().expect("state mutex poisoned");
 
                 if state_guard.in_flight.is_some() {
-                    return lifecycle_msgs::srv::ChangeState_Response { success: false };
+                    return rosrustext_msgs::lifecycle_msgs::srv::ChangeState_Response { success: false };
                 }
 
                 let start = state_guard.state;
                 let spec = match utils::transition_spec_for_ros_id(start, transition_id) {
                     Some(spec) => spec,
-                    None => return lifecycle_msgs::srv::ChangeState_Response { success: false },
+                    None => return rosrustext_msgs::lifecycle_msgs::srv::ChangeState_Response { success: false },
                 };
 
                 let intermediate = match begin(start, spec.transition) {
                     Ok(intermediate) => intermediate,
                     Err(_) => {
-                        return lifecycle_msgs::srv::ChangeState_Response { success: false };
+                        return rosrustext_msgs::lifecycle_msgs::srv::ChangeState_Response { success: false };
                     }
                 };
 
@@ -307,7 +307,7 @@ impl LifecycleNode {
                     });
                 }
 
-                lifecycle_msgs::srv::ChangeState_Response { success: true }
+                rosrustext_msgs::lifecycle_msgs::srv::ChangeState_Response { success: true }
             },
         )?;
 
@@ -322,7 +322,7 @@ impl LifecycleNode {
 
         let svc = self.node.create_service::<GetAvailableTransitions, _>(
             &service_name,
-            move |_req: lifecycle_msgs::srv::GetAvailableTransitions_Request| {
+            move |_req: rosrustext_msgs::lifecycle_msgs::srv::GetAvailableTransitions_Request| {
                 let guard = state.lock().expect("state mutex poisoned");
                 let transitions: Vec<TransitionDescription> = if guard.in_flight.is_some() {
                     Vec::new()
@@ -340,7 +340,7 @@ impl LifecycleNode {
                         .collect()
                 };
 
-                lifecycle_msgs::srv::GetAvailableTransitions_Response { available_transitions: transitions }
+                rosrustext_msgs::lifecycle_msgs::srv::GetAvailableTransitions_Response { available_transitions: transitions }
             },
         )?;
 
@@ -394,7 +394,7 @@ impl LifecycleNode {
 
         let svc = self.node.create_service::<GetTransitionGraph, _>(
             &service_name,
-            move |_req: rosrustext_interfaces::srv::GetTransitionGraph_Request| {
+            move |_req: rosrustext_msgs::rosrustext_interfaces::srv::GetTransitionGraph_Request| {
                 let states = vec![
                     utils::ros_state_msg(State::Unconfigured),
                     utils::ros_state_msg(State::Inactive),
@@ -414,7 +414,7 @@ impl LifecycleNode {
                     }));
                 }
 
-                rosrustext_interfaces::srv::GetTransitionGraph_Response { states, transitions }
+                rosrustext_msgs::rosrustext_interfaces::srv::GetTransitionGraph_Response { states, transitions }
             },
         )?;
 
@@ -428,7 +428,7 @@ impl LifecycleNode {
 
         let svc = self.node.create_service::<GetAvailableStates, _>(
             &service_name,
-            move |_req: lifecycle_msgs::srv::GetAvailableStates_Request| {
+            move |_req: rosrustext_msgs::lifecycle_msgs::srv::GetAvailableStates_Request| {
                 let states = vec![
                     utils::ros_state_msg(State::Unconfigured),
                     utils::ros_state_msg(State::Inactive),
@@ -436,7 +436,7 @@ impl LifecycleNode {
                     utils::ros_state_msg(State::Finalized),
                 ];
 
-                lifecycle_msgs::srv::GetAvailableStates_Response { available_states: states }
+                rosrustext_msgs::lifecycle_msgs::srv::GetAvailableStates_Response { available_states: states }
             },
         )?;
 

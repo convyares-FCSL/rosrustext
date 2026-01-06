@@ -18,8 +18,7 @@ members = [
     "crates/rosrustext_core",
     "crates/rosrustext_roslibrust",
     "crates/rosrustext_roslibrust/tools/rosrustext_lifecycle_proxy",
-]
-exclude = [
+    "crates/rosrustext_msgs",
     "crates/rosrustext_rosrs",
 ]
 resolver = "2"

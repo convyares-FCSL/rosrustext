@@ -20,3 +20,16 @@ pub use error::{Error, Result};
 // Re-export core types that wrapper users will commonly need
 pub use rosrustext_core::error::CoreError;
 pub use rosrustext_core::lifecycle::{CallbackResult, State, Transition};
+
+// Message compatibility re-exports
+pub mod lifecycle_msgs {
+    pub use rosrustext_msgs::lifecycle_msgs::*;
+}
+#[cfg(feature = "bond")]
+pub mod bond {
+    pub use rosrustext_msgs::bond::*;
+}
+#[cfg(feature = "transition_graph")]
+pub mod rosrustext_interfaces {
+    pub use rosrustext_msgs::rosrustext_interfaces::*;
+}
