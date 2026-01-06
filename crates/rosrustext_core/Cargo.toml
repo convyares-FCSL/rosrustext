@@ -5,7 +5,11 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
+homepage.workspace = true
 description = "ROS-agnostic lifecycle and action state machines"
+readme = "README.md"
+keywords = ["ros2", "lifecycle", "state-machine", "robotics"]
+categories = ["science::robotics"]
 
 [dependencies]
 thiserror.workspace = true

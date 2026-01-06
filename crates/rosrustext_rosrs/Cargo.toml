@@ -1,11 +1,15 @@
 [package]
 name = "rosrustext_rosrs"
-version.workspace = true
-edition.workspace = true
-license.workspace = true
-authors.workspace = true
-repository.workspace = true
-description = "ros2_rust adapter for ros2_rust lifecycle semantics"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+authors = ["Carl von Ayres <cvonayres@fuelcellsystems.co.uk>"]
+repository = "https://github.com/convyares-FCSL/rosrustext_fcsl"
+homepage = "https://github.com/convyares-FCSL/rosrustext_fcsl"
+description = "rclrs adapter for rosrustext lifecycle semantics (dev_ws only)"
+rust-version = "1.75"
+publish = false
+readme = "README.md"
 
 [dependencies]
 # Core semantics (transport-agnostic)

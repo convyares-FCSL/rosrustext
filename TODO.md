@@ -66,9 +66,9 @@ Lifecycle is the **first completed feature**, not the final goal.
 
 ---
 
-## 3. Lifecycle – Adapter: rosrustext_rosrs (rclrs)
+## 3. Lifecycle – Adapter: rosrustext_rosrs (rclrs, dev_ws)
 
-> Native RCL adapter — must converge on roslibrust parity
+> Native RCL adapter — parity with roslibrust achieved in dev_ws
 
 ### Lifecycle ROS surface
 - [x] `change_state` (non-blocking semantics validated)
@@ -88,11 +88,11 @@ Lifecycle is the **first completed feature**, not the final goal.
 - [x] Best-effort shutdown handling
 
 ### Node model / API parity
-- [ ] Make `LifecycleNode` the primary node abstraction
-- [ ] `LifecycleNode::create(&mut executor, name)`
-- [ ] `LifecycleNode::from_node(Arc<Node>)`
-- [ ] Explicit escape hatch (`as_node()` / `node_arc()`)
-- [ ] No `Deref<Target = Node>` (policy enforcement)
+- [x] `LifecycleNode` is the primary node abstraction
+- [x] `LifecycleNode::create(&mut executor, name)`
+- [x] `LifecycleNode::from_node(Arc<Node>)`
+- [x] Explicit escape hatch (`node()` / `node_arc()`)
+- [x] No `Deref<Target = Node>` (policy enforcement)
 
 ### Core integration
 - [ ] Replace adapter-owned `Mutex<State>` with `rosrustext_core` state machine

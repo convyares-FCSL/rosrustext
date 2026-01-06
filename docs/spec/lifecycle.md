@@ -20,7 +20,9 @@ Required services:
 - `get_state` — `lifecycle_msgs/srv/GetState`
 - `get_available_transitions` — `lifecycle_msgs/srv/GetAvailableTransitions`
 - `get_available_states` — `lifecycle_msgs/srv/GetAvailableStates`
-- `get_transition_graph` — `lifecycle_msgs/srv/GetTransitionGraph`
+
+Optional (introspection extension):
+- `get_transition_graph` — `rosrustext_interfaces/srv/GetTransitionGraph`
 
 Required topic:
 - `transition_event` — `lifecycle_msgs/msg/TransitionEvent`
@@ -46,6 +48,8 @@ Transition:
 
 - While in a transition state, reject new transitions deterministically.
 - Rejection must not mutate state.
+ - Busy/invalid rejections may be surfaced as `success=false` without emitting a TransitionEvent
+   (adapter-defined, but must be consistent and documented).
 
 ---
 
@@ -74,10 +78,19 @@ Transition:
 
 ### Transition events
 
-- **One event per transition attempt**, regardless of outcome.
+- **One event per accepted transition attempt**, regardless of outcome.
 - Must be published after attempt resolution.
 - Must not block state machine progression.
 - Ordering preserved per node instance.
+
+### Bond QoS (Nav2 normative)
+
+Nav2 lifecycle manager expects `/bond` with:
+
+- Reliability: Reliable
+- Durability: TransientLocal
+- History: KeepLast(1)
+- Depth: 1
 
 ---
 

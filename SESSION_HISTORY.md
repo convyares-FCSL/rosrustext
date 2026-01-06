@@ -314,6 +314,25 @@ Deferred response semantics are now validated and documented.
 
 ---
 
+## Session 20 – 2026-01-05 – Lifecycle parity closure + rosrs rename + workspace split
+- Completed rosrs lifecycle parity:
+  - lifecycle services + transition_event (success/failure/error)
+  - bond heartbeat (Nav2 QoS) and transition_graph (feature-gated)
+  - in-flight transitions + completion pump + deterministic busy rejection
+  - ErrorProcessing mapping with event emission
+- Added/updated dev_ws scripts for timing, busy rejection, failure, and error paths.
+- Renamed adapter crate to `rosrustext_rosrs` and updated dev_ws/example references.
+- Split workspace to keep core crates crates.io-safe:
+  - `rosrustext_rosrs` excluded from root workspace
+  - `rosrustext_rosrs` marked `publish = false`
+- Verified full dev_ws system suite including Nav2 lifecycle manager.
+
+Outcome:
+Lifecycle parity is complete for roslibrust and rosrs (dev_ws), with stable
+system tests and a publishable core workspace.
+
+---
+
 ## Guiding principle
 
 **Model lifecycle truth once, test it in isolation,

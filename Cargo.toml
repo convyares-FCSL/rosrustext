@@ -2,7 +2,7 @@
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
-authors = ["FCSL"]
+authors = ["Carl von Ayres <cvonayres@fuelcellsystems.co.uk>"]
 repository = "https://github.com/convyares-FCSL/rosrustext_fcsl"
 homepage = "https://github.com/convyares-FCSL/rosrustext_fcsl"
 description = "Explicit, testable ROS 2 lifecycle extensions for Rust"
@@ -18,6 +18,8 @@ members = [
     "crates/rosrustext_core",
     "crates/rosrustext_roslibrust",
     "crates/rosrustext_roslibrust/tools/rosrustext_lifecycle_proxy",
+]
+exclude = [
     "crates/rosrustext_rosrs",
 ]
 resolver = "2"
