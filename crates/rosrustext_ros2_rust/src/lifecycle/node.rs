@@ -14,7 +14,11 @@ use std::time::Duration;
 use lifecycle_msgs::msg::{TransitionDescription, TransitionEvent};
 use lifecycle_msgs::srv::{ChangeState, GetAvailableStates, GetAvailableTransitions, GetState};
 
-use rclrs::{Node, TimerOptions};
+use rclrs::{
+    Client, ClientOptions, Executor, IntoNodeOptions, IntoNodeServiceCallback,
+    IntoNodeSubscriptionCallback, Node, Service, ServiceOptions, Subscription, SubscriptionOptions,
+    TimerOptions,
+};
 use rosrustext_core::lifecycle::{
     begin, finish_with_error_handling, ActivationGate, CallbackResult, State, Transition,
 };
@@ -26,6 +30,11 @@ use rosrustext_interfaces::srv::GetTransitionGraph;
 use super::BondAgent;
 use super::{utils, ManagedPublisher, ManagedTimer};
 
+/// Lifecycle-aware node wrapper.
+///
+/// This intentionally does **not** implement `Deref<Target = Node>` so lifecycle-aware
+/// publishing and timers cannot be bypassed accidentally. Use `node_arc()` only
+/// as an explicit escape hatch.
 #[derive(Clone)]
 pub struct LifecycleNode {
     node: Arc<Node>,
@@ -49,7 +58,16 @@ pub struct LifecycleNode {
 
 // ===== Public API =====
 impl LifecycleNode {
-    /// Preferred constructor: creates the lifecycle node and enables all lifecycle-facing entities.
+    /// Primary constructor: create a node on the executor and enable lifecycle semantics.
+    pub fn create<'a>(
+        executor: &'a Executor,
+        options: impl IntoNodeOptions<'a>,
+    ) -> Result<Self> {
+        let node = Arc::new(executor.create_node(options)?);
+        Self::try_new(node)
+    }
+
+    /// Advanced constructor: wraps an existing node with lifecycle semantics.
     pub fn try_new(node: Arc<Node>) -> Result<Self> {
         let (completion_tx, completion_rx) = mpsc::channel();
         let ln = Self {
@@ -66,6 +84,11 @@ impl LifecycleNode {
 
         ln.enable_defaults()?;
         Ok(ln)
+    }
+
+    /// Advanced constructor alias for `try_new`.
+    pub fn from_node(node: Arc<Node>) -> Result<Self> {
+        Self::try_new(node)
     }
 
     /// For later slices: allow core-driven gate injection.
@@ -87,9 +110,56 @@ impl LifecycleNode {
         Ok(ln)
     }
 
-    /// Access underlying rclrs::Node.
+    /// Escape hatch: access the underlying rclrs::Node.
     pub fn node(&self) -> &Arc<Node> {
         &self.node
+    }
+
+    /// Escape hatch: clone the underlying rclrs::Node.
+    pub fn node_arc(&self) -> Arc<Node> {
+        Arc::clone(&self.node)
+    }
+
+    /// Node name after ROS remapping.
+    pub fn name(&self) -> String {
+        self.node.name()
+    }
+
+    /// Node namespace after ROS remapping.
+    pub fn namespace(&self) -> String {
+        self.node.namespace()
+    }
+
+    /// Create a non-lifecycle service on the underlying node.
+    pub fn create_service<'a, T, Args>(
+        &self,
+        options: impl Into<ServiceOptions<'a>>,
+        callback: impl IntoNodeServiceCallback<T, Args>,
+    ) -> Result<Service<T>>
+    where
+        T: rclrs::ServiceIDL,
+    {
+        Ok(self.node.create_service::<T, Args>(options, callback)?)
+    }
+
+    /// Create a non-lifecycle subscription on the underlying node.
+    pub fn create_subscription<'a, T, Args>(
+        &self,
+        options: impl Into<SubscriptionOptions<'a>>,
+        callback: impl IntoNodeSubscriptionCallback<T, Args>,
+    ) -> Result<Subscription<T>>
+    where
+        T: rclrs::MessageIDL,
+    {
+        Ok(self.node.create_subscription::<T, Args>(options, callback)?)
+    }
+
+    /// Create a client on the underlying node.
+    pub fn create_client<'a, T>(&self, options: impl Into<ClientOptions<'a>>) -> Result<Client<T>>
+    where
+        T: rclrs::ServiceIDL,
+    {
+        Ok(self.node.create_client::<T>(options)?)
     }
 
     /// Set activation / deactivation gate state.

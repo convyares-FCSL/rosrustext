@@ -137,19 +137,6 @@ pub(crate) fn on_error_result_for(transition: Transition) -> CallbackResult {
 }
 
 /// Get available primary transitions from given start State.
-pub(crate) fn available_primary_transitions(start: State) -> Vec<(u8, State, &'static str)> {
-    transition_entries_for_start(start)
-        .into_iter()
-        .map(|entry| {
-            (
-                entry.spec.transition_id,
-                entry.goal,
-                entry.spec.label,
-            )
-        })
-        .collect()
-}
-
 /// Map primary State to ROS lifecycle_msgs/msg/State id.
 pub(crate) fn ros_primary_state_id(s: State) -> u8 {
     match s {
