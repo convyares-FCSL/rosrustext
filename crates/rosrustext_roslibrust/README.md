@@ -1,9 +1,3 @@
-
----
-
-## `rosrustext_roslibrust/README.md` (crates.io front page)
-
-```markdown
 # rosrustext_roslibrust
 
 **ROS 2 lifecycle parity for Rust via roslibrust + rosbridge.**
@@ -60,3 +54,4 @@ System-level tests validate behavior against real ROS tools:
 ```bash
 # From the repo root (ROS environment sourced)
 ./scripts/test/run_all_tests.sh
+```
