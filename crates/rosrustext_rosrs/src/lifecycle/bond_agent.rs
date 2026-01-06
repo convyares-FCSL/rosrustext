@@ -88,6 +88,10 @@ impl BondAgent {
     /// - Not Active => stop heartbeats and publish exactly one inactive on edge
     pub fn set_active(&self, enabled: bool) {
         let prev = self.active.swap(enabled, Ordering::Relaxed);
+        if !prev && enabled {
+            // inactive -> active edge: publish one active immediately
+            let _ = self.status_pub.publish(self.make_status(true));
+        }
         if prev && !enabled {
             // active -> inactive edge: publish one inactive immediately
             let _ = self.status_pub.publish(self.make_status(false));

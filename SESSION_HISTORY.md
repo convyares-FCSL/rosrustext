@@ -337,4 +337,15 @@ system tests and a publishable core workspace.
 
 **Model lifecycle truth once, test it in isolation,
 then adapt it to ROS.
-Never let transport shape the semantics.**
+
+---
+
+## Session 21 – 2026-01-06 – Final Lifecycle Parity & Nav2 Verification
+- Achieved full integration with `nav2_lifecycle_manager` smoke tests.
+- **Fix 1 (State IDs)**: Updated `rosrustext_rosrs` to use standard ROS 2 transition IDs (`Configuring=10`, `Activating=13`) instead of `0`.
+- **Fix 2 (Bond Timing)**: Modified `BondAgent` to publish `active=true` immediately upon activation to satisfy strict connectivity checks.
+- **Fix 3 (Sync Execution)**: Refactored `ChangeState` to execute callbacks synchronously when `delay=0`, ensuring state consistency for polling managers.
+- Verified cleanly against `ros2 lifecycle` and `nav2_lifecycle_manager`.
+
+Outcome:
+Lifecycle parity is **officially achieved**. The adapter satisfies strict ROS 2 tooling requirements including atomic transitions and Nav2 bond timing.

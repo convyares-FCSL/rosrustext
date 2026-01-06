@@ -131,6 +131,12 @@ pub(crate) fn ros_primary_state_id(s: State) -> u8 {
         State::Inactive => 2,
         State::Active => 3,
         State::Finalized => 4,
+        State::Configuring => 10,
+        State::CleaningUp => 11,
+        State::ShuttingDown => 12,
+        State::Activating => 13,
+        State::Deactivating => 14,
+        State::ErrorProcessing => 15,
         _ => 0,
     }
 }

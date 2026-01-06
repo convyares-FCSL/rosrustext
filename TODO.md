@@ -95,8 +95,8 @@ Lifecycle is the **first completed feature**, not the final goal.
 - [x] No `Deref<Target = Node>` (policy enforcement)
 
 ### Core integration
-- [ ] Replace adapter-owned `Mutex<State>` with `rosrustext_core` state machine
-- [ ] Wire lifecycle callbacks to core (configure / activate / deactivate / cleanup / shutdown)
+- [x] Replace adapter-owned `Mutex<State>` with `rosrustext_core` state machine
+- [x] Wire lifecycle callbacks to core (configure / activate / deactivate / cleanup / shutdown)
 
 ### Compatibility validation
 - [x] `ros2 lifecycle` CLI
@@ -135,7 +135,12 @@ Lifecycle is the **first completed feature**, not the final goal.
 ### Execution / threading
 - [ ] Executor ownership model
 - [ ] Transition execution policy
-- [ ] Cancellation semantics
+- [x] Cancellation semantics (best-effort shutdown verified)
+
+### Nav2 Compatibility (Verified)
+- **Transition IDs**: Must be standard ROS 2 (10-15).
+- **Bond**: Immediate `active=true` on activation.
+- **Sync**: `ChangeState` must be synchronous (blocking) for `delay=0`.
 
 ---
 
