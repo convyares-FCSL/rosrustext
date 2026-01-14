@@ -18,7 +18,7 @@ rosrustext_core = { path = "../rosrustext_core", version = "0.3.0" }
 rclrs = "0.6"
 # Messages bundled in workspace crate for publishing
 rosrustext_msgs = { path = "../rosrustext_msgs", version = "0.1.0" }
-rcl_interfaces = { version = "*", optional = true }
+rcl_interfaces = { version = "2.0.3", optional = true }
 
 # Errors + logging (match style you already use elsewhere)
 thiserror = "2.0"
