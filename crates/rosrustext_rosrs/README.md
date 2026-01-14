@@ -32,7 +32,6 @@ See `docs/adapters/ros2rust/lifecycle/parity.md` for tool vs user parity details
 ## Lifecycle user parity gaps (current)
 
 * No set/replace callbacks API; `create`/`try_new` still default to no-op callbacks
-* Legacy `LifecycleCallbacks` lacks node/state context (use `LifecycleCallbacksWithNode`)
 * A publish suppression signal from `ManagedPublisher::publish`
 
 ## Non-lifecycle extensions (not implemented)
@@ -73,6 +72,8 @@ ros2 lifecycle set /<node> activate
 ```
 
 ## Minimal usage
+
+Recommended constructor: `LifecycleNode::create_with_callbacks`.
 
 ```rust
 use rclrs::{Context, CreateBasicExecutor, SpinOptions};

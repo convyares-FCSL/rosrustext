@@ -184,7 +184,7 @@ User parity tracks developer ergonomics and rclcpp-style lifecycle authoring.
 
 | Aspect                              | Status | Notes                                                                                                                      |
 | ----------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------- |
-| Callback registration                | ⚠️     | Callbacks can be installed via `new_with_callbacks` or `new_with_callbacks_with_node`; `create_with_callbacks` is executor-friendly. `create`/`try_new` still use DefaultCallbacks; no set/replace API. |
+| Callback registration                | ⚠️     | Callbacks can be installed via `new_with_callbacks` or executor-based `create_with_callbacks`. `create`/`try_new` still use DefaultCallbacks; no set/replace API. |
 | LifecycleNode handle in callbacks    | ✅     | `LifecycleCallbacksWithNode` receives `&LifecycleNode` and `&State`.                                                       |
 | Allocate managed resources in callbacks | ✅  | `LifecycleCallbacksWithNode` can call `LifecycleNode::{create_publisher, create_timer_repeating_gated}`.                   |
 | Callback return mapping              | ✅     | `CallbackResult::{Success, Failure, Error}` fully drives transition outcomes (including ErrorProcessing via `on_error`).   |
@@ -197,7 +197,7 @@ User parity tracks developer ergonomics and rclcpp-style lifecycle authoring.
 
 | Gap | Evidence | Fix | Risk | Test |
 | --- | -------- | --- | ---- | ---- |
-| No set/replace callbacks API | `LifecycleNode` only installs callbacks at construction. | Add `set_callbacks` / `replace_callbacks` for legacy and with-node variants. | Low | Unit/compile test for replacement. |
+| No set/replace callbacks API | `LifecycleNode` only installs callbacks at construction. | Add `set_callbacks` / `replace_callbacks`. | Low | Unit/compile test for replacement. |
 | Publish suppression signal | `ManagedPublisher::publish` returns `Result<()>` without indicating suppression. | Add a return enum or side-channel to signal suppressed publish. | Low | Unit test for suppressed publish in inactive state. |
 
 ---

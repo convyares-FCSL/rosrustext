@@ -6,7 +6,7 @@
 //! Lifecycle services + transition_event + bond come in later slices.
 
 // Re-export core lifecycle types (transport-agnostic)
-pub use rosrustext_core::lifecycle::{ActivationGate, CallbackResult, LifecycleCallbacks};
+pub use rosrustext_core::lifecycle::{ActivationGate, CallbackResult};
 
 // Managed publisher (gated publish)
 mod managed_publisher;
