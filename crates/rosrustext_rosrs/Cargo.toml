@@ -18,6 +18,7 @@ rosrustext_core = { path = "../rosrustext_core", version = "0.2.0" }
 rclrs = "0.6"
 # Messages bundled in workspace crate for publishing
 rosrustext_msgs = { path = "../rosrustext_msgs", version = "0.1.0" }
+rcl_interfaces = { version = "*", optional = true }
 
 # Errors + logging (match style you already use elsewhere)
 thiserror = "2.0"
@@ -25,7 +26,7 @@ tracing = "0.1"
 
 [features]
 default = []
-ros2 = []
+ros2 = ["rcl_interfaces"]
 lifecycle_msgs = []
 bond = ["ros2"]
 transition_graph = ["ros2"]

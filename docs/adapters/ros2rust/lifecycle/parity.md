@@ -1,51 +1,44 @@
-# Lifecycle Parity – rosrs (rclrs) Adapter
+# Parameters Parity – rosrs (rclrs) Adapter
 
-This document tracks lifecycle parity for the rosrs transport adapter
+This document tracks ROS 2 **parameters parity** for the rosrs transport adapter
 (`rosrustext_rosrs` using `rclrs`).
 
 Canonical reference:
 
-* `docs/spec/lifecycle.md` (normative)
+* `docs/spec/parameters.md` (normative)
 
 This file answers:
 
-> "Given the ROS2 lifecycle spec, what does the rosrs adapter provide?"
+> "Given the ROS2 parameters spec, what does the rosrs adapter provide?"
 
 ---
 
 ## Parity definitions (rosrs)
 
-Tool parity (external behavior) means ROS tools and managers observe lifecycle
+Tool parity (external behavior) means ROS tools and other nodes observe parameter
 behavior that matches ROS 2 semantics, regardless of adapter internals.
 
 Acceptance criteria (tool parity):
 
-* `/<node>/change_state`, `get_state`, `get_available_states`, and
-  `get_available_transitions` exist and match the state machine semantics.
-* `transition_event` publishes once per accepted transition attempt after
-  completion, with ROS-consistent IDs and labels.
-* Busy/in-flight requests are rejected deterministically with `success=false`
-  and no TransitionEvent.
-* `get_transition_graph` is available when `transition_graph` is enabled and
-  reflects the canonical transition table.
-* `/bond` heartbeats (feature `bond`) are emitted only while Active with Nav2
-  QoS.
+* `ros2 param list/get/set/describe` works end-to-end.
+* Parameter services exist with correct names and types.
+* Accepted parameter updates are immediately observable via services.
+* Parameter events are emitted for accepted updates.
+* Atomic vs non-atomic semantics are respected.
 
-User parity (developer experience) means authoring lifecycle nodes in Rust feels
-like rclcpp-style lifecycle code.
+User parity (developer experience) means authoring parameterized nodes in Rust
+feels comparable to rclcpp-style parameter usage.
 
 Acceptance criteria (user parity):
 
-* Callbacks can be installed at construction (executor or existing node).
-* Callbacks receive lifecycle context (node + gate/state) sufficient to allocate
-  managed resources.
-* Managed publishers/timers can be constructed inside callbacks via public API.
-* An external minimal lifecycle example demonstrates configure/activate with
-  gated resources.
-* Publish suppression is observable in user code.
+* Parameters can be declared with type, default, and descriptor metadata.
+* Users can react to parameter changes without polling.
+* Validation logic is expressible in user code and testable.
+* Invalid updates do not silently corrupt node behavior.
+* Observable behavior matches the canonical spec, even if APIs differ.
 
-Status summary: Tool parity is largely complete; user parity has known gaps (see
-below).
+Status summary: Tool parity is largely complete; user parity is **partial** due to
+upstream `rclrs` limitations (see gaps).
 
 ---
 
@@ -60,135 +53,73 @@ below).
 
 ## Tool Parity (External behavior)
 
-Tool parity tracks ROS-facing behavior: lifecycle services, transition_event,
-bond, busy/in-flight handling, and graph introspection.
+Tool parity tracks ROS-facing behavior: parameter services, parameter events,
+atomicity, and rejection semantics.
 
 ### Services (ROS-facing)
 
-| Service                             | ROS Type                                       | Status | Notes                                                                                                                            |
-| ----------------------------------- | ---------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| `/<node>/change_state`              | `lifecycle_msgs/srv/ChangeState`               | ✅     | Rejects invalid/busy with `success=false`. Accepted requests return `success=true` regardless of callback outcome. Delay=0 completes synchronously and updates stable state before response; delay>0 completes asynchronously. |
-| `/<node>/get_state`                 | `lifecycle_msgs/srv/GetState`                  | ✅     | Reports `StateMachine::stable_state()`; while in-flight, remains the previous stable state.                                     |
-| `/<node>/get_available_states`      | `lifecycle_msgs/srv/GetAvailableStates`        | ✅     | Returns primary states only (Unconfigured/Inactive/Active/Finalized).                                                            |
-| `/<node>/get_available_transitions` | `lifecycle_msgs/srv/GetAvailableTransitions`   | ✅     | Uses `StateMachine::current_state()`; returns empty while in-flight (transition/intermediate state).                             |
-| `/<node>/get_transition_graph`      | `rosrustext_interfaces/srv/GetTransitionGraph` | ✅     | Feature `transition_graph`. Returns primary states and transitions derived from `utils::TRANSITION_SPECS`.                        |
-
-**Custom introspection policy (Jazzy):**
-`lifecycle_msgs` in Jazzy does not include `GetTransitionGraph`. `rosrustext`
-provides `rosrustext_interfaces/srv/GetTransitionGraph` **only** behind the
-`transition_graph` feature. Default builds keep the standard Jazzy surface and
-avoid the custom interface package.
-
-**Design constraint:**
-`change_state` must not block indefinitely. Delay=0 completes synchronously
-before responding; delay>0 returns after acceptance and completion is applied
-by the completion pump, per the ROS2 service contract ("able to initiate transition").
+| Service                              | ROS Type                                              | Status | Notes                                                                 |
+| ------------------------------------ | ----------------------------------------------------- | ------ | --------------------------------------------------------------------- |
+| `/<node>/get_parameters`             | `rcl_interfaces/srv/GetParameters`                    | ✅     | Unknown names return `NOT_SET`. Ordering preserved.                    |
+| `/<node>/get_parameter_types`        | `rcl_interfaces/srv/GetParameterTypes`                | ✅     | Unknown names return `NOT_SET`.                                        |
+| `/<node>/list_parameters`            | `rcl_interfaces/srv/ListParameters`                   | ✅     | Prefix + depth semantics respected.                                   |
+| `/<node>/describe_parameters`        | `rcl_interfaces/srv/DescribeParameters`               | ✅     | Descriptors returned for declared params.                              |
+| `/<node>/set_parameters`             | `rcl_interfaces/srv/SetParameters`                    | ⚠️     | Accepted/rejected results returned; no set-time callback hook.         |
+| `/<node>/set_parameters_atomically`  | `rcl_interfaces/srv/SetParametersAtomically`          | ⚠️     | Atomicity at service level; validation limitations apply.              |
 
 ### Topics
 
-| Topic                      | ROS Type                             | Status | Notes                                                                                                                   |
-| -------------------------- | ------------------------------------ | ------ | ----------------------------------------------------------------------------------------------------------------------- |
-| `/<node>/transition_event` | `lifecycle_msgs/msg/TransitionEvent` | ✅     | Published once per accepted attempt after completion is applied. Busy/invalid requests do not emit events. Timestamp is `u64` nanoseconds. |
-| `/bond`                    | `bond/msg/Status`                    | ✅     | Feature `bond`. Publisher + timer created at node startup; heartbeats only while Active; one edge message on active<->inactive transitions; QoS is Reliable + TransientLocal + KeepLast(1). |
+| Topic               | ROS Type                                   | Status | Notes                                                                 |
+| ------------------- | ------------------------------------------ | ------ | --------------------------------------------------------------------- |
+| `/<node>/parameter_events` | `rcl_interfaces/msg/ParameterEvent` | ✅     | Emitted for accepted updates only; ordering preserved.                |
 
 ### Behavioral semantics
 
-| Aspect                               | Status | Notes                                                                                                               |
-| ------------------------------------ | ------ | ------------------------------------------------------------------------------------------------------------------- |
-| Single in-flight transition          | ✅     | Any transition request while `in_flight` is set is rejected.                                                        |
-| Busy rejection semantics             | ✅     | Busy requests return `success=false` and do not emit `transition_event`.                                             |
-| Transition IDs + labels              | ✅     | Transition IDs from `lifecycle_msgs::msg::Transition::*`; labels from `rosrustext_core::lifecycle::Transition::label()` (lowercase). State IDs match `lifecycle_msgs::msg::State` constants; labels are Rust enum debug strings. |
-| ErrorProcessing + on_error semantics | ✅     | If a transition callback yields `Error`, `on_error()` is invoked and the final state resolves per core rules.        |
-| Async/in-flight execution model      | ✅     | Controlled by `ROSRUSTEXT_RCLRS_CHANGE_STATE_DELAY_MS`: 0 runs callbacks inline; >0 spawns a worker thread and completion is applied by `enable_completion_pump` timer. |
-| Lifecycle-owned entity retention     | ✅     | Services, publishers, and timers are stored in internals so application code does not need to keep handles alive.    |
-| ManagedPublisher gating (local)      | ✅     | Drops publish calls while inactive; does not enable/disable DDS entities.                                            |
-| ManagedTimer gating (local)          | ✅     | Timer callback is guarded by `ActivationGate::is_active()`; timer still runs at the `rclrs` layer.                   |
+| Aspect                              | Status | Notes                                                                 |
+| ---------------------------------- | ------ | --------------------------------------------------------------------- |
+| Declared-only vs allow-undeclared  | ⚠️     | Behavior depends on node configuration; must be documented by node.   |
+| Unknown parameter get/type         | ✅     | Returns `NOT_SET` per ROS spec.                                        |
+| Non-atomic set semantics           | ⚠️     | Partial success allowed; validation is post-set only.                 |
+| Atomic set semantics               | ⚠️     | All-or-nothing at service boundary; true pre-validation unavailable.  |
+| Read-only parameters               | ⚠️     | Descriptor respected; enforcement depends on validation strategy.     |
+| Parameter deletion                 | ⚠️     | Not consistently supported; behavior must be documented.              |
+| Parameter events on success only   | ✅     | Rejected updates do not emit events.                                   |
 
-**Transition table single source of truth:**
-The adapter derives validation, `get_available_transitions`, and
-`get_transition_graph` from one canonical transition table in
-`crates/rosrustext_rosrs/src/lifecycle/utils.rs`.
+---
 
-### Execution model (transport-specific)
+## Execution model (transport-specific)
 
 The rosrs adapter is a **native `rclrs` node**.
 
-* Lifecycle callbacks (core): synchronous hooks.
-* Service handlers: must **not** block indefinitely; may run inline when delay=0.
-* Application owns the executor/spin loop (same model as rclcpp).
-* No adapter-owned background spinner.
+* Parameter services are handled synchronously by `rclrs`.
+* `rclrs` **does not currently expose set-time validation callbacks**
+  (equivalent to rclcpp `on_set_parameters_callback`).
+* As a result, adapters cannot reliably reject invalid values *before*
+  they are applied by the service layer.
 
 **Implication:**
-The adapter supports:
+Validation may be:
+* post-set (detect + ignore or revert), or
+* simulated via parameter events.
 
-* transition work occurring off-thread or incrementally
-* transition completion observed in executor context (completion pump)
-* service response sent **after** completion *or* after initiation (both allowed)
-
-Tokio is **not required** and should not be assumed.
-
-### Test-only hooks (ROS workspace)
-
-These environment variables exist to make semantics testable in a ROS workspace:
-
-* `ROSRUSTEXT_RCLRS_CHANGE_STATE_DELAY_MS` — injects a delay; nonzero enables in-flight completion.
-* `ROSRUSTEXT_RCLRS_TRANSITION_RESULT` / `ROSRUSTEXT_RCLRS_TRANSITION_RESULT_<TRANSITION>` —
-  forces Success/Failure/Error for the primary transition.
-* `ROSRUSTEXT_RCLRS_ON_ERROR_RESULT` / `ROSRUSTEXT_RCLRS_ON_ERROR_RESULT_<TRANSITION>` —
-  forces Success/Failure/Error for ErrorProcessing.
-
-### Bond QoS (normative)
-
-Nav2 lifecycle manager expects `/bond` with the following QoS (not optional in practice):
-
-* Reliability: **Reliable**
-* Durability: **TransientLocal**
-* History: **KeepLast(1)**
-* Depth: **1**
-
-This QoS is part of lifecycle parity (adapter responsibility), not an
-application tuning knob.
-
-### Lifecycle node ownership & lifetime model (normative)
-
-The rosrs lifecycle adapter **must mirror rclcpp/rclpy lifecycle ownership
-semantics**.
-
-#### Required behavior
-
-* A `LifecycleNode` is the **primary node abstraction** exposed to application code.
-* Lifecycle-internal ROS entities are **owned by the lifecycle node**, not the application:
-
-  * lifecycle services
-  * transition_event publisher
-  * bond publisher / heartbeat timer
-* Application code **must not** be required to:
-
-  * store lifecycle service handles
-  * keep lifecycle timers alive
-  * reason about lifecycle service lifetimes
-
-#### Rust-specific constraint
-
-Because `rclrs` uses RAII lifetimes:
-
-* The adapter **must internally retain** service / timer / publisher handles
-* This retention is an **implementation detail**, invisible to application code
+This is a known limitation and is tracked under user parity gaps.
 
 ---
 
 ## User Parity (Developer experience)
 
-User parity tracks developer ergonomics and rclcpp-style lifecycle authoring.
+User parity tracks how natural it is to *write* parameterized nodes in Rust.
 
-| Aspect                              | Status | Notes                                                                                                                      |
-| ----------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------- |
-| Callback registration                | ⚠️     | Callbacks can be installed via `new_with_callbacks` or executor-based `create_with_callbacks`. `create`/`try_new` still use DefaultCallbacks; no set/replace API. |
-| LifecycleNode handle in callbacks    | ✅     | `LifecycleCallbacksWithNode` receives `&LifecycleNode` and `&State`.                                                       |
-| Allocate managed resources in callbacks | ✅  | `LifecycleCallbacksWithNode` can call `LifecycleNode::{create_publisher, create_timer_repeating_gated}`.                   |
-| Callback return mapping              | ✅     | `CallbackResult::{Success, Failure, Error}` fully drives transition outcomes (including ErrorProcessing via `on_error`).   |
-| Publish suppression signal           | ✅     | `ManagedPublisher::publish_with_outcome` reports `Published` vs `SuppressedInactive`; `publish` remains silent.           |
-| External minimal rclcpp-style example | ✅     | Example lives outside this repo and allocates gated publishers/timers in `on_configure`. |
+| Aspect                                | Status | Notes                                                                 |
+| ------------------------------------ | ------ | --------------------------------------------------------------------- |
+| Parameter declaration                 | ✅     | Typed declaration with defaults and descriptors supported.            |
+| Parameter get access                  | ✅     | Direct access via declared handles (e.g., `MandatoryParameter`).      |
+| Reacting to parameter changes         | ⚠️     | Requires `parameter_events` subscription or polling.                  |
+| Set-time validation & rejection       | ❌     | No native rclrs callback hook; cannot reject before apply.            |
+| Atomic validation (cross-parameter)   | ❌     | Not possible pre-set; only detect after.                              |
+| Testable validation logic             | ⚠️     | Possible via pure helpers, but wiring is manual.                      |
+| Poll-free dynamic updates             | ⚠️     | Achievable via event-driven watcher (adapter-level helper).           |
+| rclcpp-style authoring ergonomics     | ❌     | API parity not yet achievable without upstream changes.               |
 
 ---
 
@@ -196,52 +127,48 @@ User parity tracks developer ergonomics and rclcpp-style lifecycle authoring.
 
 | Gap | Evidence | Fix | Risk | Test |
 | --- | -------- | --- | ---- | ---- |
-| No set/replace callbacks API | `LifecycleNode` only installs callbacks at construction. | Add `set_callbacks` / `replace_callbacks`. | Low | Unit/compile test for replacement. |
+| No set-time validation callback | `rclrs` lacks on-set hook | Upstream rclrs API or adapter-level FFI | Medium | rclpy-style rejection tests |
+| No atomic pre-validation | Same as above | Same as above | Medium | Atomic failure tests |
+| Event-driven helper missing | Users resort to polling | Add `ParameterWatcher` helper | Low | Dev_ws param update script |
+| Undeclared param mode unclear | Node-defined | Require explicit doc / flag | Low | CLI smoke |
 
 ---
 
 ## Known intentional differences
 
-* Busy/invalid `change_state` requests do not emit `transition_event`.
-* `change_state` responds `success=true` once a transition is accepted; callback
-  outcome is reflected in `get_state` and `transition_event`.
-* Transition graph uses `rosrustext_interfaces/srv/GetTransitionGraph` behind
-  the `transition_graph` feature (Jazzy compatibility).
-* Managed publisher/timer parity is achieved by local gating, not DDS/RCL
-  enable/disable.
+* Parameter rejection may occur **after** service acceptance (post-set),
+  not at set-time.
+* Some invalid values may be ignored or reverted rather than rejected.
+* Parameter deletion semantics are adapter-defined unless explicitly supported.
+* True rclcpp-style `on_set_parameters_callback` parity is not currently possible
+  with `rclrs` 0.6.x.
 
 ---
 
 ## Validation (Jazzy)
 
-* `ros2 lifecycle get /ros2_rust_lifecycle_gate_minimal`
-* `ros2 lifecycle set /ros2_rust_lifecycle_gate_minimal configure`
-* `ros2 lifecycle set /ros2_rust_lifecycle_gate_minimal activate`
-* `ros2 lifecycle set /ros2_rust_lifecycle_gate_minimal deactivate`
-* `ros2 topic echo /<node>/transition_event --once`
-* Bond smoke: `scripts/test/ros2_rust/lifecycle/test_bond.sh`
-* Nav2 manager smoke: `scripts/test/ros2_rust/lifecycle/test_nav2_lifecycle_manager.sh`
-* Transition graph smoke: `scripts/test/ros2_rust/lifecycle/test_transition_graph.sh`
-* ChangeState timing (rclpy, not `ros2` CLI): `scripts/test/ros2_rust/lifecycle/test_change_state_timing.sh`
-* Busy rejection: `scripts/test/ros2_rust/lifecycle/test_busy_rejection.sh`
-* Failure path: `scripts/test/ros2_rust/lifecycle/test_change_state_failure.sh`
-* ErrorProcessing -> Unconfigured: `scripts/test/ros2_rust/lifecycle/test_change_state_error_processing_unconfigured.sh`
-* ErrorProcessing -> Finalized: `scripts/test/ros2_rust/lifecycle/test_change_state_error_processing_finalized.sh`
-* CLI smoke: `scripts/test/ros2_rust/lifecycle/test_lifecycle_cli.sh`
-* User parity example: `scripts/test/ros2_rust/lifecycle/test_rosrustext_rosrs_user_parity.sh`
+* `ros2 param list /<node>`
+* `ros2 param get /<node> <param>`
+* `ros2 param set /<node> <param> <value>`
+* `ros2 param describe /<node> <param>`
+* `ros2 topic echo /<node>/parameter_events --once`
+* Atomic set smoke: `scripts/test/ros2_rust/parameters/test_set_parameters_atomically.sh`
+* Dynamic update smoke (event-driven): `scripts/test/ros2_rust/parameters/test_parameter_events.sh`
 * Full suite: `scripts/test/ros2_rust/run_all_tests.sh`
 
 ---
 
-## Definition of Done (rosrs lifecycle)
+## Definition of Done (rosrs parameters)
 
 Tool parity is complete when a Rust node using `rosrustext_rosrs` can be:
 
-* Driven by `ros2 lifecycle get/set`
-* Managed by Python lifecycle managers
-* Managed by `nav2_lifecycle_manager` (bond enabled)
+* Fully controlled via `ros2 param` CLI
+* Observed via `parameter_events`
+* Used safely by other ROS 2 nodes expecting canonical parameter behavior
 
-User parity is complete when lifecycle callbacks can access lifecycle context,
-allocate gated resources, callbacks can be installed/replaced at runtime, and
-publish suppression is observable, with an in-repo example demonstrating the
-intended authoring workflow.
+User parity is complete when parameter changes can be:
+* validated at set-time,
+* rejected atomically,
+* reacted to without polling,
+* and authored in Rust with ergonomics comparable to rclcpp.
+```
