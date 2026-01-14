@@ -9,7 +9,7 @@ adapter and application-facing APIs.
 | Area | Tool parity | User parity |
 | ---- | ---------- | ---------- |
 | Lifecycle | Implemented (services/events/bond/gating) | Partial (gaps documented) |
-| Parameters | Not implemented | Not implemented |
+| Parameters | Implemented (services/events) | Partial (watcher; no set-time validation hook) |
 | Actions | Not implemented | Not implemented |
 | Executor | Not implemented | Not implemented |
 
@@ -23,6 +23,16 @@ adapter and application-facing APIs.
 * ManagedPublisher/ManagedTimer gating while inactive (local suppression)
 
 See `docs/adapters/ros2rust/lifecycle/parity.md` for tool vs user parity details.
+
+## Parameters parity (implemented baseline)
+
+* Parameter services: `get_parameters`, `get_parameter_types`, `list_parameters`,
+  `describe_parameters`, `set_parameters`, `set_parameters_atomically`
+* `parameter_events` publisher (emitted on successful updates only)
+* `ParameterWatcher` helper for event-driven updates without polling
+* No set-time validation hook (updates are observable after apply)
+
+See `docs/adapters/ros2rust/parameters/parity.md` for tool vs user parity details.
 
 ## Known differences vs rclcpp
 
@@ -50,15 +60,15 @@ match publisher.publish_with_outcome(msg)? {
 
 * No set/replace callbacks API; `create`/`try_new` still default to no-op callbacks
 
-## Non-lifecycle extensions (not implemented)
+## Other extensions (not implemented)
 
-* Parameters parity
 * Actions parity
 * Executor extensions
 
-## Build (ROS installed, not on crates.io)
+## Build (ROS installed)
 
-This crate requires ROS 2 to be installed and is not published on crates.io.
+This crate is published on crates.io, but building requires ROS 2 and ROS message
+crates available via a ROS workspace environment (Cargo patching is typical).
 
 ```bash
 cargo build \

@@ -1,12 +1,12 @@
 [package]
 name = "rosrustext_rosrs"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 license = "Apache-2.0"
 authors = ["Carl von Ayres <cvonayres@fuelcellsystems.co.uk>"]
 repository = "https://github.com/convyares-FCSL/rosrustext_fcsl"
 homepage = "https://github.com/convyares-FCSL/rosrustext_fcsl"
-description = "rclrs adapter for rosrustext lifecycle semantics (dev_ws only)"
+description = "rclrs adapter for rosrustext ROS 2 lifecycle + parameters parity"
 rust-version = "1.75"
 readme = "README.md"
 
