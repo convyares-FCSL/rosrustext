@@ -6,11 +6,11 @@
 //! Lifecycle services + transition_event + bond come in later slices.
 
 // Re-export core lifecycle types (transport-agnostic)
-pub use rosrustext_core::lifecycle::{ActivationGate, CallbackResult, LifecycleCallbacks};
+pub use rosrustext_core::lifecycle::{ActivationGate, CallbackResult};
 
 // Managed publisher (gated publish)
 mod managed_publisher;
-pub use managed_publisher::ManagedPublisher;
+pub use managed_publisher::{ManagedPublisher, PublishOutcome};
 
 // Managed timer (gated timer callback)
 mod managed_timer;
@@ -28,7 +28,7 @@ pub use rosrustext_msgs::rosrustext_interfaces::srv::GetTransitionGraph;
 
 // LifecycleNode (thin wrapper around Arc<rclrs::Node> + gate)
 mod node;
-pub use node::LifecycleNode;
+pub use node::{LifecycleCallbacksWithNode, LifecycleNode};
 
 // Internal helpers split out from node for readability
 mod utils;

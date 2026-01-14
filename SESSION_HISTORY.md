@@ -349,3 +349,10 @@ then adapt it to ROS.
 
 Outcome:
 Lifecycle parity is **officially achieved**. The adapter satisfies strict ROS 2 tooling requirements including atomic transitions and Nav2 bond timing.
+
+---
+
+Note (clarification):
+- For `rosrustext_rosrs`, `get_state` reports the stable state only; intermediate
+  transition states are not surfaced. When delay>0 is enabled, `change_state`
+  returns acceptance and `transition_event` indicates completion.

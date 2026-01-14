@@ -136,13 +136,13 @@ Adapters map the core semantics onto specific Rust ROS stacks.
   * Bond heartbeat
   * Transition graph service
 
-#### `rosrustext_rosrs` *(complete, dev_ws only)*
+#### `rosrustext_rosrs` *(complete, ROS workspace only)*
 
 * Uses native RCL bindings (`rclrs`)
 * Lifecycle services + `transition_event`
 * Bond heartbeat behind feature `bond` (Nav2 QoS)
 * Transition graph behind feature `transition_graph` (custom interface)
-* **Not publishable** (ROS msg crates come from a colcon dev workspace)
+* **Not publishable** (ROS msg crates come from a colcon workspace)
 
 Adapters are **replaceable**, not competing.
 
@@ -177,7 +177,7 @@ Current lifecycle support includes:
 * Busy rejection + non-blocking ChangeState timing contract
 * Bond heartbeat (feature `bond`, Nav2 QoS)
 * Transition graph (feature `transition_graph`)
-* Verified with CLI + Nav2 smoke scripts in dev_ws
+* Verified with CLI + Nav2 smoke scripts in a ROS workspace
 
 ---
 
@@ -201,7 +201,7 @@ they test **real ROS behavior**, not mocked APIs.
 
 ### How to run tests
 
-Core-only (no dev_ws):
+Core-only (no ROS workspace):
 
 ```bash
 cargo fmt --all -- --check
@@ -215,7 +215,7 @@ roslibrust adapter (from repo root, ROS sourced):
 ./scripts/test/run_all_tests.sh
 ```
 
-rosrs adapter system tests (from dev_ws, ROS sourced):
+rosrs adapter system tests (from ROS workspace, ROS sourced):
 
 ```bash
 ~/fcsl/rosrustext/scripts/test/ros2_rust/run_all_tests.sh
@@ -241,7 +241,7 @@ This is about **compatibility, correctness, and confidence**.
 * Lifecycle parity (roslibrust): **complete**
 * roslibrust adapter: **complete**
 * Nav2 compatibility (roslibrust): **verified**
-* rosrs adapter (lifecycle): **complete (dev_ws only)**
+* rosrs adapter (lifecycle): **complete (ROS workspace only)**
 * Actions, parameters, execution: **planned**
 
 ---
@@ -255,8 +255,8 @@ Published or publish-ready:
 
 Not published:
 
-* `rosrustext_rosrs` (dev_ws only; depends on ROS msg crates generated in colcon)
-* ROS msg crates (`lifecycle_msgs`, `bond`, `rosrustext_interfaces`) used by the dev_ws overlay
+* `rosrustext_rosrs` (ROS workspace only; depends on ROS msg crates generated in colcon)
+* ROS msg crates (`lifecycle_msgs`, `bond`, `rosrustext_interfaces`) used by the ROS workspace overlay
 
 See `TODO.md` and parity documents for tracked work.
 

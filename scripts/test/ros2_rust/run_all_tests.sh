@@ -18,6 +18,7 @@ TESTS=(
   "scripts/test/ros2_rust/lifecycle/test_change_state_error_processing_finalized.sh"
   "scripts/test/ros2_rust/lifecycle/test_bond.sh"
   "scripts/test/ros2_rust/lifecycle/test_nav2_lifecycle_manager.sh"
+  "scripts/test/ros2_rust/lifecycle/test_rosrustext_rosrs_user_parity.sh"
 )
 
 failures=()

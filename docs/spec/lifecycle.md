@@ -51,17 +51,24 @@ Transition:
  - Busy/invalid rejections may be surfaced as `success=false` without emitting a TransitionEvent
    (adapter-defined, but must be consistent and documented).
 
+### GetState
+
+- `get_state` returns the **stable** lifecycle state only.
+- Transitional/intermediate states are not reported by `get_state`.
+
 ---
 
 ### ChangeState
 
 - Accepts ROS transition IDs per conventions.
 - Success response indicates **transition was accepted or initiated**.
-- For tooling compatibility (notably Nav2), the **default path** must update
-  `get_state` to the expected goal state immediately after a successful response.
-- Async/in-flight completion is allowed **only** when explicitly enabled or when
-  the caller is known to tolerate it; `transition_event` remains the authoritative
-  outcome signal in those cases.
+- For tooling compatibility (notably Nav2), the **default path** (delay=0,
+  synchronous completion) must update `get_state` to the expected goal state
+  immediately after a successful response.
+- Async/in-flight completion is allowed when delay>0 is explicitly enabled;
+  in that mode the response indicates acceptance, `get_state` remains at the
+  previous stable state until completion, and `transition_event` is the
+  authoritative outcome signal.
 - Transition events must report actual outcomes.
 
 ---

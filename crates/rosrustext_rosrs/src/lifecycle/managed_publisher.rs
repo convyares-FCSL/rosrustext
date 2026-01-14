@@ -3,6 +3,12 @@ use std::sync::Arc;
 use crate::error::Result;
 use rosrustext_core::lifecycle::ActivationGate;
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum PublishOutcome {
+    Published,
+    SuppressedInactive,
+}
+
 /// A publisher wrapper that drops publishes while inactive.
 pub struct ManagedPublisher<T>
 where
@@ -21,10 +27,17 @@ where
     }
 
     pub fn publish(&self, msg: T) -> Result<()> {
+        let _ = self.publish_with_outcome(msg)?;
+        Ok(())
+    }
+
+    pub fn publish_with_outcome(&self, msg: T) -> Result<PublishOutcome> {
         if self.gate.is_active() {
             self.inner.publish(msg)?;
+            Ok(PublishOutcome::Published)
+        } else {
+            Ok(PublishOutcome::SuppressedInactive)
         }
-        Ok(())
     }
 
     pub fn inner(&self) -> &rclrs::Publisher<T> {
