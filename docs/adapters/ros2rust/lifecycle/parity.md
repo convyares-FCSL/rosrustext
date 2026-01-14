@@ -1,6 +1,6 @@
 # Lifecycle Parity – rosrs (rclrs) Adapter
 
-This document tracks lifecycle parity for the **rosrs transport adapter**
+This document tracks lifecycle parity for the rosrs transport adapter
 (`rosrustext_rosrs` using `rclrs`).
 
 Canonical reference:
@@ -9,7 +9,44 @@ Canonical reference:
 
 This file answers:
 
-> “Given the ROS2 lifecycle spec, what does the rosrs adapter provide?”
+> "Given the ROS2 lifecycle spec, what does the rosrs adapter provide?"
+
+---
+
+## Parity definitions (rosrs)
+
+Tool parity (external behavior) means ROS tools and managers observe lifecycle
+behavior that matches ROS 2 semantics, regardless of adapter internals.
+
+Acceptance criteria (tool parity):
+
+* `/<node>/change_state`, `get_state`, `get_available_states`, and
+  `get_available_transitions` exist and match the state machine semantics.
+* `transition_event` publishes once per accepted transition attempt after
+  completion, with ROS-consistent IDs and labels.
+* Busy/in-flight requests are rejected deterministically with `success=false`
+  and no TransitionEvent.
+* `get_transition_graph` is available when `transition_graph` is enabled and
+  reflects the canonical transition table.
+* `/bond` heartbeats (feature `bond`) are emitted only while Active with Nav2
+  QoS.
+
+User parity (developer experience) means authoring lifecycle nodes in Rust feels
+like rclcpp-style lifecycle code.
+
+Acceptance criteria (user parity):
+
+* Callbacks can be installed at construction (executor or existing node) and
+  replaced.
+* Callbacks receive lifecycle context (node + gate/state) sufficient to allocate
+  managed resources.
+* Managed publishers/timers can be constructed inside callbacks via public API.
+* An in-repo minimal lifecycle example demonstrates configure/activate with
+  gated resources.
+* Publish suppression is observable in user code.
+
+Status summary: Tool parity is largely complete; user parity has known gaps (see
+below).
 
 ---
 
@@ -22,77 +59,63 @@ This file answers:
 
 ---
 
-## Services (ROS-facing)
+## Tool Parity (External behavior)
 
-| Service                             | ROS Type                                       | Status                                     | Notes                                                                                                               |
-| ----------------------------------- | ---------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
-| `/<node>/change_state`              | `lifecycle_msgs/srv/ChangeState`               | ✅ Implemented                              | Accepts or rejects immediately; completion may be sync (delay=0) or async (delay>0).                                |
-| `/<node>/get_state`                 | `lifecycle_msgs/srv/GetState`                  | ✅ Implemented                              | Native service server.                                                                                              |
-| `/<node>/get_available_transitions` | `lifecycle_msgs/srv/GetAvailableTransitions`   | ✅ Implemented                              | Native service server.                                                                                              |
-| `/<node>/get_available_states`      | `lifecycle_msgs/srv/GetAvailableStates`        | ✅ Implemented                              | Native service server.                                                                                              |
-| `/<node>/get_transition_graph`      | `rosrustext_interfaces/srv/GetTransitionGraph` | ✅ Implemented (feature `transition_graph`) | Custom introspection service. Jazzy lacks `lifecycle_msgs/GetTransitionGraph`.                                      |
-| `create`                            | internal                                       | ❌ Omitted                                  | Wrapper-only concern.                                                                                               |
-| `destroy`                           | internal                                       | ❌ Omitted                                  | Wrapper-only concern.                                                                                               |
+Tool parity tracks ROS-facing behavior: lifecycle services, transition_event,
+bond, busy/in-flight handling, and graph introspection.
+
+### Services (ROS-facing)
+
+| Service                             | ROS Type                                       | Status | Notes                                                                                                                            |
+| ----------------------------------- | ---------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `/<node>/change_state`              | `lifecycle_msgs/srv/ChangeState`               | ✅     | Rejects invalid/busy with `success=false`. Accepted requests return `success=true` regardless of callback outcome. Completion may be sync (delay=0) or async (delay>0). |
+| `/<node>/get_state`                 | `lifecycle_msgs/srv/GetState`                  | ✅     | Reports `StateMachine::stable_state()`; while in-flight, remains the previous stable state.                                      |
+| `/<node>/get_available_states`      | `lifecycle_msgs/srv/GetAvailableStates`        | ✅     | Returns primary states only (Unconfigured/Inactive/Active/Finalized).                                                            |
+| `/<node>/get_available_transitions` | `lifecycle_msgs/srv/GetAvailableTransitions`   | ✅     | Uses `StateMachine::current_state()`; returns empty while in-flight (transition/intermediate state).                             |
+| `/<node>/get_transition_graph`      | `rosrustext_interfaces/srv/GetTransitionGraph` | ✅     | Feature `transition_graph`. Returns primary states and transitions derived from `utils::TRANSITION_SPECS`.                        |
 
 **Custom introspection policy (Jazzy):**
 `lifecycle_msgs` in Jazzy does not include `GetTransitionGraph`. `rosrustext`
 provides `rosrustext_interfaces/srv/GetTransitionGraph` **only** behind the
-`transition_graph` feature. Default builds keep the standard Jazzy surface
-and do not require the custom interface package.
+`transition_graph` feature. Default builds keep the standard Jazzy surface and
+avoid the custom interface package.
 
 **Design constraint:**
 `change_state` must not block the executor thread. Whether the transition
-completes before the response is returned is **adapter-defined**, as permitted
-by the ROS2 service contract (“able to initiate transition”).
+completes before the response is returned is adapter-defined, per the ROS2
+service contract ("able to initiate transition").
 
----
+### Topics
 
-## Topics
+| Topic                      | ROS Type                             | Status | Notes                                                                                                                   |
+| -------------------------- | ------------------------------------ | ------ | ----------------------------------------------------------------------------------------------------------------------- |
+| `/<node>/transition_event` | `lifecycle_msgs/msg/TransitionEvent` | ✅     | Published once per accepted attempt after completion is applied. Busy/invalid requests do not emit events. Timestamp is `u64` nanoseconds. |
+| `/bond`                    | `bond/msg/Status`                    | ✅     | Feature `bond`. Publisher + timer created at node startup; heartbeats only while Active; one edge message on active<->inactive transitions; QoS is Reliable + TransientLocal + KeepLast(1). |
 
-| Topic                      | ROS Type                             | Status                         | Notes                                                                                                                                                                                                               |
-| -------------------------- | ------------------------------------ | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/<node>/transition_event` | `lifecycle_msgs/msg/TransitionEvent` | ✅ Implemented                  | Native publisher. Emits **one event per accepted transition attempt** (success/failure/error). Busy rejections do not emit events. Jazzy `timestamp` is `uint64` nanoseconds.                                     |
-| `/bond`                    | `bond/msg/Status`                    | ✅ Implemented (feature `bond`) | Adapter-owned publisher + heartbeat timer for Nav2 lifecycle manager compatibility. **QoS is normative (see below).**                                                                                               |
+### Behavioral semantics
 
----
-
-### TransitionEvent behavior (documented)
-
-Canonical ROS2 semantics require one TransitionEvent per transition attempt.
-
-Current behavior (rosrs, Jazzy):
-
-* TransitionEvent is emitted for **accepted** attempts (success/failure/error).
-* Busy/invalid requests are rejected and do **not** emit events.
-
----
-
-## Semantics (core truth projected through adapter)
-
-| Aspect                            | Status          | Notes                                                                           |
-| --------------------------------- | --------------- | ------------------------------------------------------------------------------- |
-| Busy-state rejection              | ✅ Core-provided | Adapter rejects deterministically without mutating state.                       |
-| Activation gating                 | ✅ Core-provided | `ActivationGate` owned by lifecycle node.                                       |
-| Publish suppression when inactive | ✅ Core-provided | Silent drop (no per-message warnings).                                          |
-| Timer suppression when inactive   | ✅ Core-provided | Implemented via guarded callbacks.                                              |
-| Shutdown from any state           | ✅ Core-provided | Best-effort path to Finalized.                                                  |
-| ErrorProcessing handling          | ✅ Core-provided | ErrorProcessing resolves to Unconfigured or Finalized, with one event per attempt. |
-| Fatal error policy                | ✅ Core-provided | Adapter enforces Finalized per core policy.                                     |
-| In-flight execution model         | ✅ Adapter       | Single in-flight transition; worker thread computes outcome, completion pump applies. |
-| Sync completion default           | ✅ Adapter       | If delay hook is unset/zero, completion happens inline before responding.       |
+| Aspect                               | Status | Notes                                                                                                               |
+| ------------------------------------ | ------ | ------------------------------------------------------------------------------------------------------------------- |
+| Single in-flight transition          | ✅     | Any transition request while `in_flight` is set is rejected.                                                        |
+| Busy rejection semantics             | ✅     | Busy requests return `success=false` and do not emit `transition_event`.                                             |
+| Transition IDs + labels              | ✅     | Transition IDs from `lifecycle_msgs::msg::Transition::*`; labels from `rosrustext_core::lifecycle::Transition::label()` (lowercase). State IDs match `lifecycle_msgs::msg::State` constants; labels are Rust enum debug strings. |
+| ErrorProcessing + on_error semantics | ✅     | If a transition callback yields `Error`, `on_error()` is invoked and the final state resolves per core rules.        |
+| Async/in-flight execution model      | ✅     | Controlled by `ROSRUSTEXT_RCLRS_CHANGE_STATE_DELAY_MS`: 0 runs callbacks inline; >0 spawns a worker thread and completion is applied by `enable_completion_pump` timer. |
+| Lifecycle-owned entity retention     | ✅     | Services, publishers, and timers are stored in internals so application code does not need to keep handles alive.    |
+| ManagedPublisher gating (local)      | ✅     | Drops publish calls while inactive; does not enable/disable DDS entities.                                            |
+| ManagedTimer gating (local)          | ✅     | Timer callback is guarded by `ActivationGate::is_active()`; timer still runs at the `rclrs` layer.                   |
 
 **Transition table single source of truth:**
-The adapter derives validation, `get_available_transitions`, and `get_transition_graph`
-from one canonical transition table in `crates/rosrustext_rosrs/src/lifecycle/utils.rs`.
+The adapter derives validation, `get_available_transitions`, and
+`get_transition_graph` from one canonical transition table in
+`crates/rosrustext_rosrs/src/lifecycle/utils.rs`.
 
----
-
-## Callback execution model (transport-specific)
+### Execution model (transport-specific)
 
 The rosrs adapter is a **native `rclrs` node**.
 
 * Lifecycle callbacks (core): synchronous hooks.
-* Service handlers: must **not block the executor thread**.
+* Service handlers: must **not** block the executor thread.
 * Application owns the executor/spin loop (same model as rclcpp).
 * No adapter-owned background spinner.
 
@@ -105,7 +128,7 @@ The adapter supports:
 
 Tokio is **not required** and should not be assumed.
 
-### Test-only hooks (documented)
+### Test-only hooks (dev_ws)
 
 These environment variables exist to make semantics testable in dev_ws:
 
@@ -114,8 +137,6 @@ These environment variables exist to make semantics testable in dev_ws:
   forces Success/Failure/Error for the primary transition.
 * `ROSRUSTEXT_RCLRS_ON_ERROR_RESULT` / `ROSRUSTEXT_RCLRS_ON_ERROR_RESULT_<TRANSITION>` —
   forces Success/Failure/Error for ErrorProcessing.
-
----
 
 ### Bond QoS (normative)
 
@@ -126,15 +147,15 @@ Nav2 lifecycle manager expects `/bond` with the following QoS (not optional in p
 * History: **KeepLast(1)**
 * Depth: **1**
 
-This QoS is part of lifecycle parity (adapter responsibility), not an application tuning knob.
+This QoS is part of lifecycle parity (adapter responsibility), not an
+application tuning knob.
 
----
+### Lifecycle node ownership & lifetime model (normative)
 
-## Lifecycle node ownership & lifetime model (normative)
+The rosrs lifecycle adapter **must mirror rclcpp/rclpy lifecycle ownership
+semantics**.
 
-The rosrs lifecycle adapter **must mirror rclcpp/rclpy lifecycle ownership semantics**.
-
-### Required behavior
+#### Required behavior
 
 * A `LifecycleNode` is the **primary node abstraction** exposed to application code.
 * Lifecycle-internal ROS entities are **owned by the lifecycle node**, not the application:
@@ -148,7 +169,7 @@ The rosrs lifecycle adapter **must mirror rclcpp/rclpy lifecycle ownership seman
   * keep lifecycle timers alive
   * reason about lifecycle service lifetimes
 
-### Rust-specific constraint
+#### Rust-specific constraint
 
 Because `rclrs` uses RAII lifetimes:
 
@@ -157,18 +178,44 @@ Because `rclrs` uses RAII lifetimes:
 
 ---
 
-## Intentional deviations
+## User Parity (Developer experience)
 
-* Busy/invalid change_state requests return `success=false` and **do not** emit
-  a TransitionEvent.
-* Transition graph uses a custom interface (`rosrustext_interfaces`) because
-  Jazzy lacks `lifecycle_msgs/GetTransitionGraph`.
-* The adapter is dev_ws-only (not publishable on crates.io yet).
+User parity tracks developer ergonomics and rclcpp-style lifecycle authoring.
+
+| Aspect                              | Status | Notes                                                                                                                      |
+| ----------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------- |
+| Callback registration                | ⚠️     | Only `LifecycleNode::new_with_callbacks(Arc<Node>, Box<dyn LifecycleCallbacks + Send>)` installs user callbacks. `create`/`try_new` always use DefaultCallbacks; no set/replace API. |
+| LifecycleNode handle in callbacks    | ❌     | `LifecycleCallbacks` methods take only `&mut self` (no LifecycleNode/Node/State) and there is no TLS/context accessor.     |
+| Allocate managed resources in callbacks | ❌  | `ManagedPublisher`/`ManagedTimer` constructors are `pub(crate)`; creation is only exposed via `LifecycleNode::{create_publisher, create_timer_repeating_gated}` and callbacks lack a node handle. |
+| Callback return mapping              | ✅     | `CallbackResult::{Success, Failure, Error}` fully drives transition outcomes (including ErrorProcessing via `on_error`).   |
+| Publish suppression signal           | ⚠️     | `ManagedPublisher::publish` returns `Result<()>` and does not indicate "suppressed vs published".                          |
+| In-repo minimal rclcpp-style example | ❌     | No example under this repo demonstrates allocating gated publishers/timers in `on_configure`; tests use an external dev_ws example. |
+
+---
+
+## Parity Gaps / Required Changes (rosrs)
+
+| Gap | Evidence | Fix | Risk | Test |
+| --- | -------- | --- | ---- | ---- |
+| Callbacks cannot access LifecycleNode | `engine.rs` `LifecycleCallbacks`; `node.rs` `do_callback`; `ManagedPublisher::new`/`ManagedTimer::new` are `pub(crate)` | Add an adapter-level callback trait that receives a node/context (e.g., `&LifecycleNode` or `{ node: Arc<Node>, gate: Arc<ActivationGate> }`) and invoke it from `enable_change_state_service`. | Medium (API surface + reentrancy considerations) | Add a rosrs example/test that allocates `ManagedPublisher`/timer in `on_configure`. |
+| Executor-based constructor cannot take callbacks | `node.rs` `LifecycleNode::create` calls `try_new` (DefaultCallbacks) | Add `LifecycleNode::create_with_callbacks(...)` (or equivalent). | Low | Compile-only example. |
+| No in-repo rosrs lifecycle example | Tests depend on external `dev_ws` example | Add `crates/rosrustext_rosrs/examples/` (or docs/examples) showing lifecycle callback registration + gated resources. | Low | Run example with `ros2 lifecycle get/set`. |
+
+---
+
+## Known intentional differences
+
+* Busy/invalid `change_state` requests do not emit `transition_event`.
+* Transition graph uses `rosrustext_interfaces/srv/GetTransitionGraph` behind
+  the `transition_graph` feature (Jazzy compatibility).
+* Managed publisher/timer parity is achieved by local gating, not DDS/RCL
+  enable/disable.
 
 ---
 
 ## Validation (Jazzy)
 
+* `ros2 lifecycle get /ros2_rust_lifecycle_gate_minimal`
 * `ros2 lifecycle set /ros2_rust_lifecycle_gate_minimal configure`
 * `ros2 lifecycle set /ros2_rust_lifecycle_gate_minimal activate`
 * `ros2 lifecycle set /ros2_rust_lifecycle_gate_minimal deactivate`
@@ -179,18 +226,21 @@ Because `rclrs` uses RAII lifetimes:
 * ChangeState timing (rclpy, not `ros2` CLI): `scripts/test/ros2_rust/lifecycle/test_change_state_timing.sh`
 * Busy rejection: `scripts/test/ros2_rust/lifecycle/test_busy_rejection.sh`
 * Failure path: `scripts/test/ros2_rust/lifecycle/test_change_state_failure.sh`
-* ErrorProcessing → Unconfigured: `scripts/test/ros2_rust/lifecycle/test_change_state_error_processing_unconfigured.sh`
-* ErrorProcessing → Finalized: `scripts/test/ros2_rust/lifecycle/test_change_state_error_processing_finalized.sh`
+* ErrorProcessing -> Unconfigured: `scripts/test/ros2_rust/lifecycle/test_change_state_error_processing_unconfigured.sh`
+* ErrorProcessing -> Finalized: `scripts/test/ros2_rust/lifecycle/test_change_state_error_processing_finalized.sh`
+* CLI smoke: `scripts/test/ros2_rust/lifecycle/test_lifecycle_cli.sh`
 * Full suite: `scripts/test/ros2_rust/run_all_tests.sh`
 
 ---
 
 ## Definition of Done (rosrs lifecycle)
 
-Lifecycle parity is complete when a Rust node using `rosrustext_rosrs` can be:
+Tool parity is complete when a Rust node using `rosrustext_rosrs` can be:
 
 * Driven by `ros2 lifecycle get/set`
 * Managed by Python lifecycle managers
 * Managed by `nav2_lifecycle_manager` (bond enabled)
 
-…with no semantic drift from `docs/spec/lifecycle.md`.
+User parity is complete when lifecycle callbacks can access lifecycle context,
+allocate gated resources, and an in-repo minimal example demonstrates the
+intended authoring workflow.
