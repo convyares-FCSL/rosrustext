@@ -19,8 +19,8 @@ use rclrs::{
     Service, ServiceOptions, Subscription, SubscriptionOptions, TimerOptions,
 };
 use rosrustext_core::lifecycle::{
-    begin, finish_with_error_handling, ActivationGate, CallbackResult, CompleteInput, CompleteOutcome,
-    LifecycleCallbacks, State, StateMachine, Transition, TransitionInFlight,
+    ActivationGate, CallbackResult, CompleteInput, CompleteOutcome, LifecycleCallbacks, State, StateMachine,
+    Transition,
 };
 
 #[cfg(feature = "transition_graph")]
@@ -29,6 +29,52 @@ use rosrustext_msgs::rosrustext_interfaces::srv::GetTransitionGraph;
 #[cfg(feature = "bond")]
 use super::BondAgent;
 use super::{utils, ManagedPublisher, ManagedTimer};
+
+/// Lifecycle callbacks that receive the lifecycle handle and the stable
+/// state before the transition begins.
+pub trait LifecycleCallbacksWithNode {
+    fn on_configure(&mut self, node: &LifecycleNode, state: &State) -> CallbackResult;
+    fn on_activate(&mut self, node: &LifecycleNode, state: &State) -> CallbackResult;
+    fn on_deactivate(&mut self, node: &LifecycleNode, state: &State) -> CallbackResult;
+    fn on_cleanup(&mut self, node: &LifecycleNode, state: &State) -> CallbackResult;
+    fn on_shutdown(&mut self, node: &LifecycleNode, state: &State) -> CallbackResult;
+
+    /// Called when a transition callback reports `CallbackResult::Error`.
+    fn on_error(&mut self, node: &LifecycleNode, state: &State) -> CallbackResult;
+}
+
+enum CallbackDispatch {
+    Legacy(Box<dyn LifecycleCallbacks + Send>),
+    WithNode(Box<dyn LifecycleCallbacksWithNode + Send>),
+}
+
+impl CallbackDispatch {
+    fn on_transition(&mut self, transition: Transition, node: &LifecycleNode, state: State) -> CallbackResult {
+        match self {
+            CallbackDispatch::Legacy(cb) => match transition {
+                Transition::Configure => cb.on_configure(),
+                Transition::Activate => cb.on_activate(),
+                Transition::Deactivate => cb.on_deactivate(),
+                Transition::Cleanup => cb.on_cleanup(),
+                Transition::Shutdown => cb.on_shutdown(),
+            },
+            CallbackDispatch::WithNode(cb) => match transition {
+                Transition::Configure => cb.on_configure(node, &state),
+                Transition::Activate => cb.on_activate(node, &state),
+                Transition::Deactivate => cb.on_deactivate(node, &state),
+                Transition::Cleanup => cb.on_cleanup(node, &state),
+                Transition::Shutdown => cb.on_shutdown(node, &state),
+            },
+        }
+    }
+
+    fn on_error(&mut self, node: &LifecycleNode, state: State) -> CallbackResult {
+        match self {
+            CallbackDispatch::Legacy(cb) => cb.on_error(),
+            CallbackDispatch::WithNode(cb) => cb.on_error(node, &state),
+        }
+    }
+}
 
 /// Lifecycle-aware node wrapper.
 ///
@@ -44,7 +90,7 @@ pub struct LifecycleNode {
     machine: Arc<Mutex<StateMachine>>,
     
     // User callbacks
-    callbacks: Arc<Mutex<Box<dyn LifecycleCallbacks + Send>>>,
+    callbacks: Arc<Mutex<CallbackDispatch>>,
 
     completion_tx: mpsc::Sender<AsyncOutcome>,
     completion_rx: Arc<Mutex<mpsc::Receiver<AsyncOutcome>>>,
@@ -85,7 +131,7 @@ impl LifecycleNode {
             node,
             gate: Arc::new(ActivationGate::new()),
             machine: Arc::new(Mutex::new(StateMachine::new())),
-            callbacks: Arc::new(Mutex::new(Box::new(DefaultCallbacks))),
+            callbacks: Arc::new(Mutex::new(CallbackDispatch::Legacy(Box::new(DefaultCallbacks)))),
             completion_tx,
             completion_rx: Arc::new(Mutex::new(completion_rx)),
             transition_event_pub: Arc::new(Mutex::new(None)),
@@ -105,7 +151,30 @@ impl LifecycleNode {
             node,
             gate: Arc::new(ActivationGate::new()),
             machine: Arc::new(Mutex::new(StateMachine::new())),
-            callbacks: Arc::new(Mutex::new(callbacks)),
+            callbacks: Arc::new(Mutex::new(CallbackDispatch::Legacy(callbacks))),
+            completion_tx,
+            completion_rx: Arc::new(Mutex::new(completion_rx)),
+            transition_event_pub: Arc::new(Mutex::new(None)),
+            #[cfg(feature = "bond")]
+            bond: Arc::new(Mutex::new(None)),
+            internals: Arc::new(Mutex::new(Vec::new())),
+        };
+
+        ln.enable_defaults()?;
+        Ok(ln)
+    }
+
+    /// Create with callbacks that receive the lifecycle handle.
+    pub fn new_with_callbacks_with_node(
+        node: Arc<Node>,
+        callbacks: Box<dyn LifecycleCallbacksWithNode + Send>,
+    ) -> Result<Self> {
+        let (completion_tx, completion_rx) = mpsc::channel();
+        let ln = Self {
+            node,
+            gate: Arc::new(ActivationGate::new()),
+            machine: Arc::new(Mutex::new(StateMachine::new())),
+            callbacks: Arc::new(Mutex::new(CallbackDispatch::WithNode(callbacks))),
             completion_tx,
             completion_rx: Arc::new(Mutex::new(completion_rx)),
             transition_event_pub: Arc::new(Mutex::new(None)),
@@ -130,7 +199,7 @@ impl LifecycleNode {
             node,
             gate,
             machine: Arc::new(Mutex::new(StateMachine::new())),
-            callbacks: Arc::new(Mutex::new(Box::new(DefaultCallbacks))),
+            callbacks: Arc::new(Mutex::new(CallbackDispatch::Legacy(Box::new(DefaultCallbacks)))),
             completion_tx,
             completion_rx: Arc::new(Mutex::new(completion_rx)),
             transition_event_pub: Arc::new(Mutex::new(None)),
@@ -141,6 +210,16 @@ impl LifecycleNode {
 
         ln.enable_defaults()?;
         Ok(ln)
+    }
+
+    /// Primary constructor with callbacks that receive the lifecycle handle.
+    pub fn create_with_callbacks<'a>(
+        executor: &'a Executor,
+        options: impl IntoNodeOptions<'a>,
+        callbacks: Box<dyn LifecycleCallbacksWithNode + Send>,
+    ) -> Result<Self> {
+        let node = Arc::new(executor.create_node(options)?);
+        Self::new_with_callbacks_with_node(node, callbacks)
     }
 
     /// Escape hatch: access the underlying rclrs::Node.
@@ -352,29 +431,25 @@ impl LifecycleNode {
                 // We clone the callbacks Arc.
                 let callbacks_clone = callbacks.clone();
                 let completion_tx_clone = completion_tx.clone();
-                
+                let active_self_for_cb = active_self.clone();
+                let start_state = flight.start;
+
                 // Closure to execute the user callback
                 let do_callback = move || -> CompleteInput {
                     if delay_ms > 0 {
                         std::thread::sleep(Duration::from_millis(delay_ms));
                     }
-                    
+
                     let mut cb_guard = callbacks_clone.lock().expect("callbacks mutex poisoned");
-                    let result = match flight.transition {
-                         Transition::Configure => cb_guard.on_configure(),
-                         Transition::Activate => cb_guard.on_activate(),
-                         Transition::Deactivate => cb_guard.on_deactivate(),
-                         Transition::Cleanup => cb_guard.on_cleanup(),
-                         Transition::Shutdown => cb_guard.on_shutdown(),
-                    };
-                    
+                    let result = cb_guard.on_transition(flight.transition, &active_self_for_cb, start_state);
+
                     let on_error_result = if result == CallbackResult::Error {
-                        Some(cb_guard.on_error())
+                        Some(cb_guard.on_error(&active_self_for_cb, start_state))
                     } else {
                         None
                     };
                     drop(cb_guard);
-                    
+
                     CompleteInput { result, on_error_result }
                 };
 

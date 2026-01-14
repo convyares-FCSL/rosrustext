@@ -24,20 +24,26 @@ adapter and application-facing APIs.
 
 See `docs/adapters/ros2rust/lifecycle/parity.md` for tool vs user parity details.
 
+## Known differences vs rclcpp
+
+* `change_state` returns `success=true` once a transition is accepted; callback
+  outcome is reflected in the final state and `transition_event`.
+
 ## Lifecycle user parity gaps (current)
 
-* Callback registration via `LifecycleNode::create`/`try_new` or a set/replace
-  API (only `new_with_callbacks`)
-* Callback context (LifecycleNode/Node/State) inside `LifecycleCallbacks`
-* Public API to construct managed publishers/timers inside callbacks
+* No set/replace callbacks API; `create`/`try_new` still default to no-op callbacks
+* Legacy `LifecycleCallbacks` lacks node/state context (use `LifecycleCallbacksWithNode`)
 * A publish suppression signal from `ManagedPublisher::publish`
-* An in-repo minimal lifecycle example (tests use an external dev_ws example)
 
 ## Non-lifecycle extensions (not implemented)
 
 * Parameters parity
 * Actions parity
 * Executor extensions
+
+## Build (ROS installed, not on crates.io)
+
+This crate requires ROS 2 to be installed and is not published on crates.io.
 
 ```bash
 cargo build \
@@ -70,26 +76,28 @@ ros2 lifecycle set /<node> activate
 
 ```rust
 use rclrs::{Context, CreateBasicExecutor, SpinOptions};
-use rosrustext_rosrs::lifecycle::{CallbackResult, LifecycleCallbacks, LifecycleNode};
-use std::sync::Arc;
+use rosrustext_rosrs::lifecycle::{CallbackResult, LifecycleCallbacksWithNode, LifecycleNode};
+use rosrustext_rosrs::State;
 
 struct Callbacks;
 
-impl LifecycleCallbacks for Callbacks {
-    fn on_configure(&mut self) -> CallbackResult { CallbackResult::Success }
-    fn on_activate(&mut self) -> CallbackResult { CallbackResult::Success }
-    fn on_deactivate(&mut self) -> CallbackResult { CallbackResult::Success }
-    fn on_cleanup(&mut self) -> CallbackResult { CallbackResult::Success }
-    fn on_shutdown(&mut self) -> CallbackResult { CallbackResult::Success }
-    fn on_error(&mut self) -> CallbackResult { CallbackResult::Success }
+impl LifecycleCallbacksWithNode for Callbacks {
+    fn on_configure(&mut self, node: &LifecycleNode, _state: &State) -> CallbackResult {
+        let _ = node.name();
+        CallbackResult::Success
+    }
+    fn on_activate(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult { CallbackResult::Success }
+    fn on_deactivate(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult { CallbackResult::Success }
+    fn on_cleanup(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult { CallbackResult::Success }
+    fn on_shutdown(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult { CallbackResult::Success }
+    fn on_error(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult { CallbackResult::Success }
 }
 
 fn main() -> rosrustext_rosrs::Result<()> {
     let context = Context::default();
     let mut executor = context.create_basic_executor();
-    let node = Arc::new(executor.create_node("lifecycle_demo")?);
 
-    let _lifecycle = LifecycleNode::new_with_callbacks(node, Box::new(Callbacks))?;
+    let _lifecycle = LifecycleNode::create_with_callbacks(&executor, "lifecycle_demo", Box::new(Callbacks))?;
     executor.spin(SpinOptions::default());
     Ok(())
 }

@@ -128,9 +128,9 @@ The adapter supports:
 
 Tokio is **not required** and should not be assumed.
 
-### Test-only hooks (dev_ws)
+### Test-only hooks (ROS workspace)
 
-These environment variables exist to make semantics testable in dev_ws:
+These environment variables exist to make semantics testable in a ROS workspace:
 
 * `ROSRUSTEXT_RCLRS_CHANGE_STATE_DELAY_MS` — injects a delay; nonzero enables in-flight completion.
 * `ROSRUSTEXT_RCLRS_TRANSITION_RESULT` / `ROSRUSTEXT_RCLRS_TRANSITION_RESULT_<TRANSITION>` —
@@ -184,12 +184,12 @@ User parity tracks developer ergonomics and rclcpp-style lifecycle authoring.
 
 | Aspect                              | Status | Notes                                                                                                                      |
 | ----------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------- |
-| Callback registration                | ⚠️     | Only `LifecycleNode::new_with_callbacks(Arc<Node>, Box<dyn LifecycleCallbacks + Send>)` installs user callbacks. `create`/`try_new` always use DefaultCallbacks; no set/replace API. |
-| LifecycleNode handle in callbacks    | ❌     | `LifecycleCallbacks` methods take only `&mut self` (no LifecycleNode/Node/State) and there is no TLS/context accessor.     |
-| Allocate managed resources in callbacks | ❌  | `ManagedPublisher`/`ManagedTimer` constructors are `pub(crate)`; creation is only exposed via `LifecycleNode::{create_publisher, create_timer_repeating_gated}` and callbacks lack a node handle. |
+| Callback registration                | ⚠️     | Callbacks can be installed via `new_with_callbacks` or `new_with_callbacks_with_node`; `create_with_callbacks` is executor-friendly. `create`/`try_new` still use DefaultCallbacks; no set/replace API. |
+| LifecycleNode handle in callbacks    | ✅     | `LifecycleCallbacksWithNode` receives `&LifecycleNode` and `&State`.                                                       |
+| Allocate managed resources in callbacks | ✅  | `LifecycleCallbacksWithNode` can call `LifecycleNode::{create_publisher, create_timer_repeating_gated}`.                   |
 | Callback return mapping              | ✅     | `CallbackResult::{Success, Failure, Error}` fully drives transition outcomes (including ErrorProcessing via `on_error`).   |
 | Publish suppression signal           | ⚠️     | `ManagedPublisher::publish` returns `Result<()>` and does not indicate "suppressed vs published".                          |
-| In-repo minimal rclcpp-style example | ❌     | No example under this repo demonstrates allocating gated publishers/timers in `on_configure`; tests use an external dev_ws example. |
+| External minimal rclcpp-style example | ✅     | Example lives outside this repo and allocates gated publishers/timers in `on_configure`. |
 
 ---
 
@@ -197,15 +197,16 @@ User parity tracks developer ergonomics and rclcpp-style lifecycle authoring.
 
 | Gap | Evidence | Fix | Risk | Test |
 | --- | -------- | --- | ---- | ---- |
-| Callbacks cannot access LifecycleNode | `engine.rs` `LifecycleCallbacks`; `node.rs` `do_callback`; `ManagedPublisher::new`/`ManagedTimer::new` are `pub(crate)` | Add an adapter-level callback trait that receives a node/context (e.g., `&LifecycleNode` or `{ node: Arc<Node>, gate: Arc<ActivationGate> }`) and invoke it from `enable_change_state_service`. | Medium (API surface + reentrancy considerations) | Add a rosrs example/test that allocates `ManagedPublisher`/timer in `on_configure`. |
-| Executor-based constructor cannot take callbacks | `node.rs` `LifecycleNode::create` calls `try_new` (DefaultCallbacks) | Add `LifecycleNode::create_with_callbacks(...)` (or equivalent). | Low | Compile-only example. |
-| No in-repo rosrs lifecycle example | Tests depend on external `dev_ws` example | Add `crates/rosrustext_rosrs/examples/` (or docs/examples) showing lifecycle callback registration + gated resources. | Low | Run example with `ros2 lifecycle get/set`. |
+| No set/replace callbacks API | `LifecycleNode` only installs callbacks at construction. | Add `set_callbacks` / `replace_callbacks` for legacy and with-node variants. | Low | Unit/compile test for replacement. |
+| Publish suppression signal | `ManagedPublisher::publish` returns `Result<()>` without indicating suppression. | Add a return enum or side-channel to signal suppressed publish. | Low | Unit test for suppressed publish in inactive state. |
 
 ---
 
 ## Known intentional differences
 
 * Busy/invalid `change_state` requests do not emit `transition_event`.
+* `change_state` responds `success=true` once a transition is accepted; callback
+  outcome is reflected in `get_state` and `transition_event`.
 * Transition graph uses `rosrustext_interfaces/srv/GetTransitionGraph` behind
   the `transition_graph` feature (Jazzy compatibility).
 * Managed publisher/timer parity is achieved by local gating, not DDS/RCL
@@ -229,6 +230,7 @@ User parity tracks developer ergonomics and rclcpp-style lifecycle authoring.
 * ErrorProcessing -> Unconfigured: `scripts/test/ros2_rust/lifecycle/test_change_state_error_processing_unconfigured.sh`
 * ErrorProcessing -> Finalized: `scripts/test/ros2_rust/lifecycle/test_change_state_error_processing_finalized.sh`
 * CLI smoke: `scripts/test/ros2_rust/lifecycle/test_lifecycle_cli.sh`
+* User parity example: `scripts/test/ros2_rust/lifecycle/test_rosrustext_rosrs_user_parity.sh`
 * Full suite: `scripts/test/ros2_rust/run_all_tests.sh`
 
 ---
@@ -242,5 +244,6 @@ Tool parity is complete when a Rust node using `rosrustext_rosrs` can be:
 * Managed by `nav2_lifecycle_manager` (bond enabled)
 
 User parity is complete when lifecycle callbacks can access lifecycle context,
-allocate gated resources, and an in-repo minimal example demonstrates the
+allocate gated resources, callbacks can be installed/replaced at runtime, and
+publish suppression is observable, with an in-repo example demonstrating the
 intended authoring workflow.

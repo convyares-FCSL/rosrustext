@@ -4,7 +4,7 @@
 rosrustext is a Rust library that extends ROS 2 capability/feature parity across transports without becoming a new client library. It must remain:
 - Focused: parity extensions, not a rewrite of ROS.
 - Clean: normal development is pure Cargo.
-- Testable: integration tests happen in a separate ROS/colcon dev workspace.
+- Testable: integration tests happen in a separate ROS/colcon workspace.
 
 ## Core Principle: Separate Concerns
 We maintain two worlds:
@@ -15,7 +15,7 @@ We maintain two worlds:
 - No generated message crates tracked
 - Builds with `cargo build` without sourcing ROS
 
-### B) Dev Workspace (ROS/colcon + message generation)
+### B) ROS Workspace (ROS/colcon + message generation)
 - A separate colcon workspace used to:
   - build `ros2_rust` tooling (`rosidl_generator_rs`, etc.)
   - generate Rust crates for message packages (std_msgs + custom msgs)
@@ -54,12 +54,12 @@ Library repo must ignore:
 
 ---
 
-## Dev Workspace Structure (separate folder; not committed to library)
+## ROS Workspace Structure (separate folder; not committed to library)
 Recommended location: sibling folder to the library.
 
 ```
 
-rosrustext_dev_ws/
+rosrustext_ros_ws/
 src/
 ros2_rust/              (ros2-rust/ros2_rust checkout) <imported repos>/       (from ros2_rust repos file)
 my_test_msgs/           (custom interface package for smoke testing)
@@ -87,7 +87,7 @@ Exit criteria:
 
 ---
 
-### Phase 1 — Establish dev workspace toolchain (ros2_rust works on Jazzy/WSL)
+### Phase 1 — Establish ROS workspace toolchain (ros2_rust works on Jazzy/WSL)
 Deliverables:
 - `ros2_rust` builds in dev ws via `colcon` using a Python environment that contains required deps (notably: numpy headers + lark)
 - `install/std_msgs/.../rust/Cargo.toml` exists
@@ -154,14 +154,14 @@ Exit criteria:
 - ros2_rust source checkout
 - colcon build products (install/build/log/.cargo)
 - Python venvs and their site-packages
-- Anything that forces end-users to adopt our dev workspace layout
+- Anything that forces end-users to adopt our ROS workspace layout
 
 ---
 
 ## Definition of “Done” (library-level)
 - rosrustext builds with pure cargo
 - parity features implemented as small, composable modules
-- integration proven in dev workspace with:
+- integration proven in ROS workspace with:
   - std_msgs usage
   - custom msg usage
 - documented workflows prevent drift
