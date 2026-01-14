@@ -29,10 +29,26 @@ See `docs/adapters/ros2rust/lifecycle/parity.md` for tool vs user parity details
 * `change_state` returns `success=true` once a transition is accepted; callback
   outcome is reflected in the final state and `transition_event`.
 
+## Publish outcome visibility
+
+Use `publish_with_outcome()` when you need to know whether a message was
+suppressed due to lifecycle inactivity. `publish()` remains silent and returns
+`Ok(())` either way.
+
+```rust
+use rosrustext_rosrs::lifecycle::{PublishOutcome, ManagedPublisher};
+
+match publisher.publish_with_outcome(msg)? {
+    PublishOutcome::Published => {}
+    PublishOutcome::SuppressedInactive => {
+        // Message was gated due to inactive lifecycle state.
+    }
+}
+```
+
 ## Lifecycle user parity gaps (current)
 
 * No set/replace callbacks API; `create`/`try_new` still default to no-op callbacks
-* A publish suppression signal from `ManagedPublisher::publish`
 
 ## Non-lifecycle extensions (not implemented)
 

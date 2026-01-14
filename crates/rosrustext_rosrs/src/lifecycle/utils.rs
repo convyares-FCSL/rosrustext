@@ -123,6 +123,14 @@ pub(crate) fn on_error_result_for(transition: Transition) -> CallbackResult {
     env_callback_result("ROSRUSTEXT_RCLRS_ON_ERROR_RESULT", transition).unwrap_or(CallbackResult::Success)
 }
 
+pub(crate) fn transition_result_override_for(transition: Transition) -> Option<CallbackResult> {
+    env_callback_result("ROSRUSTEXT_RCLRS_TRANSITION_RESULT", transition)
+}
+
+pub(crate) fn on_error_result_override_for(transition: Transition) -> Option<CallbackResult> {
+    env_callback_result("ROSRUSTEXT_RCLRS_ON_ERROR_RESULT", transition)
+}
+
 /// Get available primary transitions from given start State.
 /// Map primary State to ROS lifecycle_msgs/msg/State id.
 pub(crate) fn ros_primary_state_id(s: State) -> u8 {

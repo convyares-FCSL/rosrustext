@@ -36,12 +36,11 @@ like rclcpp-style lifecycle code.
 
 Acceptance criteria (user parity):
 
-* Callbacks can be installed at construction (executor or existing node) and
-  replaced.
+* Callbacks can be installed at construction (executor or existing node).
 * Callbacks receive lifecycle context (node + gate/state) sufficient to allocate
   managed resources.
 * Managed publishers/timers can be constructed inside callbacks via public API.
-* An in-repo minimal lifecycle example demonstrates configure/activate with
+* An external minimal lifecycle example demonstrates configure/activate with
   gated resources.
 * Publish suppression is observable in user code.
 
@@ -52,8 +51,8 @@ below).
 
 ## Dependency source
 
-* Dev workspace (`colcon`) provides `rclrs` and ROS message crates
-  via Cargo `[patch.crates-io]`.
+* ROS workspace environment (e.g., `DEV_WS_ROOT`) provides `rclrs` and ROS
+  message crates via Cargo `[patch.crates-io]`.
 * `rosrustext_rosrs` is **not publishable** until ROS msg crates are available
   on crates.io.
 
@@ -68,8 +67,8 @@ bond, busy/in-flight handling, and graph introspection.
 
 | Service                             | ROS Type                                       | Status | Notes                                                                                                                            |
 | ----------------------------------- | ---------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| `/<node>/change_state`              | `lifecycle_msgs/srv/ChangeState`               | ✅     | Rejects invalid/busy with `success=false`. Accepted requests return `success=true` regardless of callback outcome. Completion may be sync (delay=0) or async (delay>0). |
-| `/<node>/get_state`                 | `lifecycle_msgs/srv/GetState`                  | ✅     | Reports `StateMachine::stable_state()`; while in-flight, remains the previous stable state.                                      |
+| `/<node>/change_state`              | `lifecycle_msgs/srv/ChangeState`               | ✅     | Rejects invalid/busy with `success=false`. Accepted requests return `success=true` regardless of callback outcome. Delay=0 completes synchronously and updates stable state before response; delay>0 completes asynchronously. |
+| `/<node>/get_state`                 | `lifecycle_msgs/srv/GetState`                  | ✅     | Reports `StateMachine::stable_state()`; while in-flight, remains the previous stable state.                                     |
 | `/<node>/get_available_states`      | `lifecycle_msgs/srv/GetAvailableStates`        | ✅     | Returns primary states only (Unconfigured/Inactive/Active/Finalized).                                                            |
 | `/<node>/get_available_transitions` | `lifecycle_msgs/srv/GetAvailableTransitions`   | ✅     | Uses `StateMachine::current_state()`; returns empty while in-flight (transition/intermediate state).                             |
 | `/<node>/get_transition_graph`      | `rosrustext_interfaces/srv/GetTransitionGraph` | ✅     | Feature `transition_graph`. Returns primary states and transitions derived from `utils::TRANSITION_SPECS`.                        |
@@ -81,9 +80,9 @@ provides `rosrustext_interfaces/srv/GetTransitionGraph` **only** behind the
 avoid the custom interface package.
 
 **Design constraint:**
-`change_state` must not block the executor thread. Whether the transition
-completes before the response is returned is adapter-defined, per the ROS2
-service contract ("able to initiate transition").
+`change_state` must not block indefinitely. Delay=0 completes synchronously
+before responding; delay>0 returns after acceptance and completion is applied
+by the completion pump, per the ROS2 service contract ("able to initiate transition").
 
 ### Topics
 
@@ -115,7 +114,7 @@ The adapter derives validation, `get_available_transitions`, and
 The rosrs adapter is a **native `rclrs` node**.
 
 * Lifecycle callbacks (core): synchronous hooks.
-* Service handlers: must **not** block the executor thread.
+* Service handlers: must **not** block indefinitely; may run inline when delay=0.
 * Application owns the executor/spin loop (same model as rclcpp).
 * No adapter-owned background spinner.
 
@@ -188,7 +187,7 @@ User parity tracks developer ergonomics and rclcpp-style lifecycle authoring.
 | LifecycleNode handle in callbacks    | ✅     | `LifecycleCallbacksWithNode` receives `&LifecycleNode` and `&State`.                                                       |
 | Allocate managed resources in callbacks | ✅  | `LifecycleCallbacksWithNode` can call `LifecycleNode::{create_publisher, create_timer_repeating_gated}`.                   |
 | Callback return mapping              | ✅     | `CallbackResult::{Success, Failure, Error}` fully drives transition outcomes (including ErrorProcessing via `on_error`).   |
-| Publish suppression signal           | ⚠️     | `ManagedPublisher::publish` returns `Result<()>` and does not indicate "suppressed vs published".                          |
+| Publish suppression signal           | ✅     | `ManagedPublisher::publish_with_outcome` reports `Published` vs `SuppressedInactive`; `publish` remains silent.           |
 | External minimal rclcpp-style example | ✅     | Example lives outside this repo and allocates gated publishers/timers in `on_configure`. |
 
 ---
@@ -198,7 +197,6 @@ User parity tracks developer ergonomics and rclcpp-style lifecycle authoring.
 | Gap | Evidence | Fix | Risk | Test |
 | --- | -------- | --- | ---- | ---- |
 | No set/replace callbacks API | `LifecycleNode` only installs callbacks at construction. | Add `set_callbacks` / `replace_callbacks`. | Low | Unit/compile test for replacement. |
-| Publish suppression signal | `ManagedPublisher::publish` returns `Result<()>` without indicating suppression. | Add a return enum or side-channel to signal suppressed publish. | Low | Unit test for suppressed publish in inactive state. |
 
 ---
 

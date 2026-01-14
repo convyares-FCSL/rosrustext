@@ -10,7 +10,7 @@ pub use rosrustext_core::lifecycle::{ActivationGate, CallbackResult};
 
 // Managed publisher (gated publish)
 mod managed_publisher;
-pub use managed_publisher::ManagedPublisher;
+pub use managed_publisher::{ManagedPublisher, PublishOutcome};
 
 // Managed timer (gated timer callback)
 mod managed_timer;

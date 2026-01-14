@@ -339,7 +339,7 @@ impl LifecycleNode {
         let svc = self.node.create_service::<GetState, _>(
             &service_name,
             move |_req: rosrustext_msgs::lifecycle_msgs::srv::GetState_Request| {
-                let current = machine.lock().expect("machine mutex poisoned").current_state();
+                let current = machine.lock().expect("machine mutex poisoned").stable_state();
 
                 rosrustext_msgs::lifecycle_msgs::srv::GetState_Response { current_state: utils::ros_state_msg(current) }
             },
@@ -402,10 +402,18 @@ impl LifecycleNode {
                     }
 
                     let mut cb_guard = callbacks_clone.lock().expect("callbacks mutex poisoned");
-                    let result = run_transition_callback(cb_guard.as_mut(), flight.transition, &active_self_for_cb, start_state);
+                    let mut result =
+                        run_transition_callback(cb_guard.as_mut(), flight.transition, &active_self_for_cb, start_state);
+                    if let Some(forced) = utils::transition_result_override_for(flight.transition) {
+                        result = forced;
+                    }
 
                     let on_error_result = if result == CallbackResult::Error {
-                        Some(cb_guard.on_error(&active_self_for_cb, &start_state))
+                        let mut on_error = cb_guard.on_error(&active_self_for_cb, &start_state);
+                        if let Some(forced) = utils::on_error_result_override_for(flight.transition) {
+                            on_error = forced;
+                        }
+                        Some(on_error)
                     } else {
                         None
                     };

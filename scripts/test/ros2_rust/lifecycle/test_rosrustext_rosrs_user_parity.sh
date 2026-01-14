@@ -115,6 +115,22 @@ state_expect() {
     fail "expected ${label} [${id}], got: ${out}"
 }
 
+wait_for_log_token() {
+  local token="$1"
+  local timeout_s="$2"
+  local start
+  start="$(date +%s)"
+  while true; do
+    if [[ -f "${NODE_LOG}" ]] && grep -q "${token}" "${NODE_LOG}"; then
+      return 0
+    fi
+    if (( $(date +%s) - start >= timeout_s )); then
+      return 1
+    fi
+    sleep 0.1
+  done
+}
+
 echo "== ensure ROS daemon =="
 ros2_daemon_ready
 
@@ -179,6 +195,9 @@ state_expect "Unconfigured" "1"
 echo "== configure =="
 ros2_lifecycle_set configure
 state_expect "Inactive" "2"
+
+wait_for_log_token "SUPPRESSED_INACTIVE" "${ROS2_TIMEOUT}" || \
+  fail "expected SUPPRESSED_INACTIVE log token after configure"
 
 if timeout 2s ros2 topic echo "${TOPIC_NAME}" --once >/dev/null 2>&1; then
   fail "unexpected publish while inactive"
