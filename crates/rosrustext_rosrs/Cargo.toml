@@ -12,7 +12,7 @@ readme = "README.md"
 
 [dependencies]
 # Core semantics (transport-agnostic)
-rosrustext_core = { path = "../rosrustext_core", version = "0.2.0" }
+rosrustext_core = { path = "../rosrustext_core", version = "0.3.0" }
 
 # ROS2 Rust client library (Jazzy dev_ws proven path/patch setup)
 rclrs = "0.6"

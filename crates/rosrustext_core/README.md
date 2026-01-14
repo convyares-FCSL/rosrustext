@@ -1,8 +1,8 @@
 # rosrustext_core
 
-**ROS-agnostic lifecycle semantics for ROS 2, implemented in Rust.**
+**ROS-agnostic lifecycle and parameter semantics for ROS 2, implemented in Rust.**
 
-`rosrustext_core` defines the *canonical lifecycle state machine* and transition
+`rosrustext_core` defines the *canonical lifecycle state machine* and parameter
 semantics used by the `rosrustext` adapter crates.  
 It contains **no ROS messages, no executors, and no transport-specific code**.
 
@@ -11,6 +11,13 @@ This crate is intended to be:
 - deterministic
 - testable without ROS
 - reusable across multiple Rust ROS transports
+
+Scope:
+
+- Lifecycle state machine semantics (implemented)
+- Parameter store semantics (implemented)
+- Action state machine semantics (planned)
+- Executor semantics (planned)
 
 ---
 
@@ -21,11 +28,14 @@ This crate is intended to be:
 - Busy-state rejection semantics
 - Error and ErrorProcessing handling
 - Activation gating semantics
-- Deterministic unit tests for all lifecycle paths
+- Parameter value/descriptor types and change records
+- Deterministic unit tests for lifecycle semantics
 
-This crate answers the question:
+This crate answers the questions:
 
-> “What does a ROS 2 lifecycle *mean*, independent of how it is transported?”
+> "What does a ROS 2 lifecycle mean, independent of how it is transported?"
+>
+> "What do ROS 2 parameters mean, independent of how they are transported?"
 
 ---
 
@@ -46,11 +56,11 @@ Those concerns live in adapter crates.
 
 - **rosrustext_roslibrust**  
   (roslibrust + rosbridge adapter)  
-  https://github.com/RosLibRust/roslibrust
+  https://crates.io/crates/rosrustext_roslibrust
 
 - **rosrustext_rosrs**  
-  (native rclrs adapter, dev workspace only)  
-  https://github.com/ros2-rust/ros2_rust
+  (native rclrs adapter)  
+  https://crates.io/crates/rosrustext_rosrs
 
 All adapters project the same semantic truth into ROS-facing services and topics.
 
