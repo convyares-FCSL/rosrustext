@@ -19,6 +19,10 @@ TESTS=(
   "scripts/test/ros2_rust/lifecycle/test_bond.sh"
   "scripts/test/ros2_rust/lifecycle/test_nav2_lifecycle_manager.sh"
   "scripts/test/ros2_rust/lifecycle/test_rosrustext_rosrs_user_parity.sh"
+  "scripts/test/ros2_rust/parameters/test_param_cli.sh"
+  "scripts/test/ros2_rust/parameters/test_set_parameters_atomically.sh"
+  "scripts/test/ros2_rust/parameters/test_parameter_events.sh"
+  "scripts/test/ros2_rust/parameters/test_parameter_watcher.sh"
 )
 
 failures=()

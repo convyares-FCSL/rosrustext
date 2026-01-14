@@ -18,3 +18,6 @@ pub mod lifecycle;
 
 /// Action protocol core types (goal/feedback/result/cancel) without ROS transport.- TODO
 pub mod action;
+
+/// Parameters store + semantics (ROS-compatible concepts, ROS-agnostic core). - WIP
+pub mod parameters;

@@ -5,8 +5,8 @@ It is transport-agnostic and focuses on **observable behavior** (CLI/tools + oth
 not on any specific client library API.
 
 Related implementation matrices:
-- `docs/adapters/roslibrust/parameters/parity.md`
-- `docs/adapters/rosrs/parameters/parity.md`
+- `docs/adapters/roslibrust/parameters/README.md` (placeholder)
+- `docs/adapters/ros2rust/parameters/parity.md`
 
 ---
 

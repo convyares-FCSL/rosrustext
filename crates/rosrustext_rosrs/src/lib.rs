@@ -13,6 +13,8 @@
 pub mod error;
 #[cfg(feature = "ros2")]
 pub mod lifecycle;
+#[cfg(feature = "ros2")]
+pub mod parameters;
 
 // Adapter error type
 pub use error::{Error, Result};
