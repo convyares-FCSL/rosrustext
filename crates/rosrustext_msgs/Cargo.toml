@@ -10,7 +10,7 @@ readme = "README.md"
 
 [dependencies]
 # Required by generated code
-rosidl_runtime_rs = "0.5" 
+rosidl_runtime_rs = "0.5"
 serde = { version = "1.0", features = ["derive"], optional = true }
 serde-big-array = { version = "0.5", optional = true }
 

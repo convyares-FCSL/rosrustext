@@ -34,6 +34,15 @@ See `docs/adapters/ros2rust/lifecycle/parity.md` for tool vs user parity details
 
 See `docs/adapters/ros2rust/parameters/parity.md` for tool vs user parity details.
 
+## Compatibility / Parity Notes
+
+* Parameters parity uses `rclrs::vendor::rcl_interfaces` for `ParameterEvent`
+  and parameter services.
+* This couples the adapter to `rclrs` 0.6.x (and `rosidl_runtime_rs` 0.5.x
+  transitively).
+* This is an implementation detail dependency; if `rclrs` changes the vendored
+  surface, we will pin/update accordingly.
+
 ## Known differences vs rclcpp
 
 * `change_state` returns `success=true` once a transition is accepted; callback

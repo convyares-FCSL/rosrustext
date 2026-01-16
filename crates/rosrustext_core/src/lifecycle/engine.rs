@@ -2,12 +2,41 @@ use crate::error::{CoreError, Result};
 
 use super::{State, Transition};
 
-/// Result of executing a lifecycle transition callback.
+/// Result returned by a lifecycle transition callback.
 ///
-/// Mirrors the ROS lifecycle callback contract:
-/// - Success: proceed to the expected next state
-/// - Failure: rollback / remain in previous stable state (depends on transition)
-/// - Error: enter `ErrorProcessing`
+/// # Semantics
+/// This enum mirrors the canonical ROS 2 managed-node contract:
+/// - [`CallbackResult::Success`]: complete the transition to its goal state.
+/// - [`CallbackResult::Failure`]: complete the transition back to the
+///   pre-transition stable state.
+/// - [`CallbackResult::Error`]: enter `ErrorProcessing`. Adapters should then
+///   run an `on_error` callback to decide recovery (typically
+///   `Success` → `Unconfigured`, `Failure`/`Error` → `Finalized`).
+///
+/// The exact mapping from `(start_state, transition, result)` to the final stable
+/// state is defined by [`finish`] and [`finish_with_error_handling`].
+///
+/// # Errors
+/// This type does not carry error details. If you need richer diagnostics, store
+/// them alongside your callback implementation and log/report them separately.
+///
+/// # Example
+/// ```rust
+/// use rosrustext_core::lifecycle::CallbackResult;
+///
+/// fn validate(ok: bool) -> CallbackResult {
+///     if ok {
+///         CallbackResult::Success
+///     } else {
+///         CallbackResult::Failure
+///     }
+/// }
+/// ```
+///
+/// # See also
+/// - [`finish`]
+/// - [`finish_with_error_handling`]
+/// - [Lifecycle spec](https://github.com/convyares-FCSL/rosrustext_fcsl/blob/main/docs/spec/lifecycle.md)
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum CallbackResult {
     Success,

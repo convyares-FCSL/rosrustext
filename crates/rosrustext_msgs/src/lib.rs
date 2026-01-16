@@ -5,8 +5,7 @@
 //! local environment dependencies.
 
 pub mod bond;
+pub mod builtin_interfaces;
 pub mod lifecycle_msgs;
 pub mod rosrustext_interfaces;
 pub mod std_msgs;
-pub mod builtin_interfaces;
-

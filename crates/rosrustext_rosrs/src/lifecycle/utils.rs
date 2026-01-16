@@ -1,7 +1,9 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use rosrustext_msgs::lifecycle_msgs::msg::{State as RosState, Transition as RosTransition, TransitionDescription, TransitionEvent};
 use rosrustext_core::lifecycle::{goal_state_for_transition, CallbackResult, State, Transition};
+use rosrustext_msgs::lifecycle_msgs::msg::{
+    State as RosState, Transition as RosTransition, TransitionDescription, TransitionEvent,
+};
 
 pub(crate) fn change_state_delay_ms() -> u64 {
     std::env::var("ROSRUSTEXT_RCLRS_CHANGE_STATE_DELAY_MS").ok().and_then(|val| val.parse::<u64>().ok()).unwrap_or(0)
@@ -115,14 +117,6 @@ fn env_callback_result(prefix: &str, transition: Transition) -> Option<CallbackR
     None
 }
 
-pub(crate) fn transition_result_for(transition: Transition) -> CallbackResult {
-    env_callback_result("ROSRUSTEXT_RCLRS_TRANSITION_RESULT", transition).unwrap_or(CallbackResult::Success)
-}
-
-pub(crate) fn on_error_result_for(transition: Transition) -> CallbackResult {
-    env_callback_result("ROSRUSTEXT_RCLRS_ON_ERROR_RESULT", transition).unwrap_or(CallbackResult::Success)
-}
-
 pub(crate) fn transition_result_override_for(transition: Transition) -> Option<CallbackResult> {
     env_callback_result("ROSRUSTEXT_RCLRS_TRANSITION_RESULT", transition)
 }
@@ -145,7 +139,6 @@ pub(crate) fn ros_primary_state_id(s: State) -> u8 {
         State::Activating => 13,
         State::Deactivating => 14,
         State::ErrorProcessing => 15,
-        _ => 0,
     }
 }
 

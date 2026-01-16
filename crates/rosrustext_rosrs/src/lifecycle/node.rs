@@ -18,9 +18,7 @@ use rclrs::{
     Client, ClientOptions, Executor, IntoNodeOptions, IntoNodeServiceCallback, IntoNodeSubscriptionCallback, Node,
     Service, ServiceOptions, Subscription, SubscriptionOptions, TimerOptions,
 };
-use rosrustext_core::lifecycle::{
-    ActivationGate, CallbackResult, CompleteInput, CompleteOutcome, State, StateMachine, Transition,
-};
+use rosrustext_core::lifecycle::{ActivationGate, CallbackResult, CompleteInput, State, StateMachine, Transition};
 
 #[cfg(feature = "transition_graph")]
 use rosrustext_msgs::rosrustext_interfaces::srv::GetTransitionGraph;
@@ -29,8 +27,63 @@ use rosrustext_msgs::rosrustext_interfaces::srv::GetTransitionGraph;
 use super::BondAgent;
 use super::{utils, ManagedPublisher, ManagedTimer};
 
-/// Lifecycle callbacks that receive the lifecycle handle and the stable
-/// state before the transition begins.
+/// Lifecycle transition callbacks that receive a [`LifecycleNode`] handle.
+///
+/// # Semantics
+/// - One `on_*` method is called for each *accepted* `change_state` request.
+/// - `state` is the stable lifecycle state *before* the transition begins.
+/// - Returning [`CallbackResult::Success`] completes the transition to the expected
+///   goal state.
+/// - Returning [`CallbackResult::Failure`] completes the transition back to the
+///   pre-transition stable state (ROS 2 semantics).
+/// - Returning [`CallbackResult::Error`] enters `ErrorProcessing` and then calls
+///   [`Self::on_error`] to determine recovery (`Success` → `Unconfigured`,
+///   `Failure`/`Error` → `Finalized`).
+///
+/// Threading:
+/// - With `ROSRUSTEXT_RCLRS_CHANGE_STATE_DELAY_MS=0` (default), callbacks run on
+///   the executor thread inside the `change_state` service handler.
+/// - With `ROSRUSTEXT_RCLRS_CHANGE_STATE_DELAY_MS>0`, callbacks run on a spawned
+///   OS thread.
+///
+/// # Errors
+/// Callback methods do not return `Result`. Map recoverable failures to
+/// [`CallbackResult::Failure`] / [`CallbackResult::Error`]. Panicking inside a
+/// callback is not handled by the adapter and will unwind through the service
+/// handler / worker thread.
+///
+/// # Example
+/// ```rust,no_run
+/// use rosrustext_rosrs::lifecycle::{CallbackResult, LifecycleCallbacksWithNode, LifecycleNode};
+/// use rosrustext_rosrs::State;
+///
+/// struct Callbacks;
+///
+/// impl LifecycleCallbacksWithNode for Callbacks {
+///     fn on_configure(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult {
+///         CallbackResult::Success
+///     }
+///     fn on_activate(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult {
+///         CallbackResult::Success
+///     }
+///     fn on_deactivate(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult {
+///         CallbackResult::Success
+///     }
+///     fn on_cleanup(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult {
+///         CallbackResult::Success
+///     }
+///     fn on_shutdown(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult {
+///         CallbackResult::Success
+///     }
+///     fn on_error(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult {
+///         CallbackResult::Success
+///     }
+/// }
+/// ```
+///
+/// # See also
+/// - [Lifecycle spec](https://github.com/convyares-FCSL/rosrustext_fcsl/blob/main/docs/spec/lifecycle.md)
+/// - [`LifecycleNode`]
 pub trait LifecycleCallbacksWithNode {
     fn on_configure(&mut self, node: &LifecycleNode, state: &State) -> CallbackResult;
     fn on_activate(&mut self, node: &LifecycleNode, state: &State) -> CallbackResult;
@@ -43,10 +96,7 @@ pub trait LifecycleCallbacksWithNode {
 }
 
 fn run_transition_callback(
-    callbacks: &mut dyn LifecycleCallbacksWithNode,
-    transition: Transition,
-    node: &LifecycleNode,
-    state: State,
+    callbacks: &mut dyn LifecycleCallbacksWithNode, transition: Transition, node: &LifecycleNode, state: State,
 ) -> CallbackResult {
     match transition {
         Transition::Configure => callbacks.on_configure(node, &state),
@@ -57,11 +107,58 @@ fn run_transition_callback(
     }
 }
 
-/// Lifecycle-aware node wrapper.
+/// ROS-facing lifecycle wrapper around an `rclrs::Node`.
+///
+/// # Semantics
+/// - Owns a transport-agnostic lifecycle state machine (`rosrustext_core`).
+/// - Exposes ROS lifecycle services on `/<node>/…` and publishes
+///   `/<node>/transition_event`.
+/// - Maintains an internal [`ActivationGate`] that becomes active when the stable
+///   state is `Active`.
+/// - Provides managed resources ([`ManagedPublisher`], [`ManagedTimer`]) that are
+///   suppressed while inactive.
 ///
 /// This intentionally does **not** implement `Deref<Target = Node>` so lifecycle-aware
-/// publishing and timers cannot be bypassed accidentally. Use `node_arc()` only
-/// as an explicit escape hatch.
+/// publishing and timers cannot be bypassed accidentally. Use [`LifecycleNode::node_arc`]
+/// only as an explicit escape hatch.
+///
+/// # Errors
+/// Constructors return [`crate::Error`] when:
+/// - `rclrs` cannot create the node, services, publishers, or timers, or
+/// - lifecycle entities already exist on the node (name collisions).
+///
+/// # Example
+/// ```rust,no_run
+/// use rclrs::{Context, CreateBasicExecutor, SpinOptions};
+/// use rosrustext_rosrs::lifecycle::{CallbackResult, LifecycleCallbacksWithNode, LifecycleNode};
+/// use rosrustext_rosrs::State;
+///
+/// struct Callbacks;
+/// impl LifecycleCallbacksWithNode for Callbacks {
+///     fn on_configure(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult { CallbackResult::Success }
+///     fn on_activate(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult { CallbackResult::Success }
+///     fn on_deactivate(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult { CallbackResult::Success }
+///     fn on_cleanup(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult { CallbackResult::Success }
+///     fn on_shutdown(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult { CallbackResult::Success }
+///     fn on_error(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult { CallbackResult::Success }
+/// }
+///
+/// # fn main() -> rosrustext_rosrs::Result<()> {
+/// let context = Context::default();
+/// let mut executor = context.create_basic_executor();
+///
+/// let lifecycle = LifecycleNode::create_with_callbacks(&executor, "demo", Box::new(Callbacks))?;
+/// let _pub_ = lifecycle.create_publisher::<rosrustext_rosrs::lifecycle_msgs::msg::State>("state")?;
+///
+/// executor.spin(SpinOptions::default());
+/// # Ok(()) }
+/// ```
+///
+/// # See also
+/// - [Lifecycle spec](https://github.com/convyares-FCSL/rosrustext_fcsl/blob/main/docs/spec/lifecycle.md)
+/// - [Lifecycle parity notes](https://github.com/convyares-FCSL/rosrustext_fcsl/blob/main/parity.md)
+/// - [`ManagedPublisher`]
+/// - [`ManagedTimer`]
 #[derive(Clone)]
 pub struct LifecycleNode {
     node: Arc<Node>,
@@ -69,7 +166,7 @@ pub struct LifecycleNode {
 
     // Core state machine ownership
     machine: Arc<Mutex<StateMachine>>,
-    
+
     // User callbacks
     callbacks: Arc<Mutex<Box<dyn LifecycleCallbacksWithNode + Send>>>,
 
@@ -89,23 +186,83 @@ pub struct LifecycleNode {
 
 struct DefaultCallbacks;
 impl LifecycleCallbacksWithNode for DefaultCallbacks {
-    fn on_configure(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult { CallbackResult::Success }
-    fn on_activate(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult { CallbackResult::Success }
-    fn on_deactivate(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult { CallbackResult::Success }
-    fn on_cleanup(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult { CallbackResult::Success }
-    fn on_shutdown(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult { CallbackResult::Success }
-    fn on_error(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult { CallbackResult::Success }
+    fn on_configure(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult {
+        CallbackResult::Success
+    }
+    fn on_activate(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult {
+        CallbackResult::Success
+    }
+    fn on_deactivate(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult {
+        CallbackResult::Success
+    }
+    fn on_cleanup(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult {
+        CallbackResult::Success
+    }
+    fn on_shutdown(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult {
+        CallbackResult::Success
+    }
+    fn on_error(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult {
+        CallbackResult::Success
+    }
 }
 
 // ===== Public API =====
 impl LifecycleNode {
-    /// Primary constructor: create a node on the executor and enable lifecycle semantics.
+    /// Create a new `rclrs::Node` and enable lifecycle semantics on it.
+    ///
+    /// # Semantics
+    /// - Creates the underlying node via `executor.create_node(options)`.
+    /// - Enables lifecycle services, `transition_event`, and any feature-gated
+    ///   entities (e.g. `/bond`).
+    ///
+    /// # Errors
+    /// Returns an error if the node or any lifecycle ROS entity cannot be created.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use rclrs::{Context, CreateBasicExecutor};
+    /// use rosrustext_rosrs::lifecycle::LifecycleNode;
+    ///
+    /// # fn main() -> rosrustext_rosrs::Result<()> {
+    /// let context = Context::default();
+    /// let executor = context.create_basic_executor();
+    /// let _node = LifecycleNode::create(&executor, "demo")?;
+    /// # Ok(()) }
+    /// ```
+    ///
+    /// # See also
+    /// - [`LifecycleNode::create_with_callbacks`]
     pub fn create<'a>(executor: &'a Executor, options: impl IntoNodeOptions<'a>) -> Result<Self> {
         let node = Arc::new(executor.create_node(options)?);
         Self::try_new(node)
     }
 
-    /// Advanced constructor: wraps an existing node with lifecycle semantics.
+    /// Wrap an existing `rclrs::Node` with lifecycle semantics.
+    ///
+    /// # Semantics
+    /// - Enables lifecycle services and publishers on `node`.
+    /// - Uses default no-op callbacks (always [`CallbackResult::Success`]).
+    ///
+    /// # Errors
+    /// Returns an error if lifecycle entities cannot be created (for example due
+    /// to name collisions with existing services/publishers on the same node).
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use std::sync::Arc;
+    /// use rclrs::{Context, CreateBasicExecutor};
+    /// use rosrustext_rosrs::lifecycle::LifecycleNode;
+    ///
+    /// # fn main() -> rosrustext_rosrs::Result<()> {
+    /// let context = Context::default();
+    /// let executor = context.create_basic_executor();
+    /// let node = Arc::new(executor.create_node("demo")?);
+    /// let _lifecycle = LifecycleNode::try_new(node)?;
+    /// # Ok(()) }
+    /// ```
+    ///
+    /// # See also
+    /// - [`LifecycleNode::new_with_callbacks`]
     pub fn try_new(node: Arc<Node>) -> Result<Self> {
         let (completion_tx, completion_rx) = mpsc::channel();
         let ln = Self {
@@ -124,12 +281,43 @@ impl LifecycleNode {
         ln.enable_defaults()?;
         Ok(ln)
     }
-    
-    /// Create with callbacks that receive the lifecycle handle.
-    pub fn new_with_callbacks(
-        node: Arc<Node>,
-        callbacks: Box<dyn LifecycleCallbacksWithNode + Send>,
-    ) -> Result<Self> {
+
+    /// Wrap an existing `rclrs::Node` with explicit callbacks.
+    ///
+    /// # Semantics
+    /// Behaves like [`LifecycleNode::try_new`] but uses the provided callbacks.
+    ///
+    /// # Errors
+    /// Returns an error if lifecycle entities cannot be created on `node`.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use std::sync::Arc;
+    /// use rclrs::{Context, CreateBasicExecutor};
+    /// use rosrustext_rosrs::lifecycle::{CallbackResult, LifecycleCallbacksWithNode, LifecycleNode};
+    /// use rosrustext_rosrs::State;
+    ///
+    /// struct Callbacks;
+    /// impl LifecycleCallbacksWithNode for Callbacks {
+    ///     fn on_configure(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult { CallbackResult::Success }
+    ///     fn on_activate(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult { CallbackResult::Success }
+    ///     fn on_deactivate(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult { CallbackResult::Success }
+    ///     fn on_cleanup(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult { CallbackResult::Success }
+    ///     fn on_shutdown(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult { CallbackResult::Success }
+    ///     fn on_error(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult { CallbackResult::Success }
+    /// }
+    ///
+    /// # fn main() -> rosrustext_rosrs::Result<()> {
+    /// let context = Context::default();
+    /// let executor = context.create_basic_executor();
+    /// let node = Arc::new(executor.create_node("demo")?);
+    /// let _lifecycle = LifecycleNode::new_with_callbacks(node, Box::new(Callbacks))?;
+    /// # Ok(()) }
+    /// ```
+    ///
+    /// # See also
+    /// - [`LifecycleCallbacksWithNode`]
+    pub fn new_with_callbacks(node: Arc<Node>, callbacks: Box<dyn LifecycleCallbacksWithNode + Send>) -> Result<Self> {
         let (completion_tx, completion_rx) = mpsc::channel();
         let ln = Self {
             node,
@@ -148,12 +336,51 @@ impl LifecycleNode {
         Ok(ln)
     }
 
-    /// Advanced constructor alias for `try_new`.
+    /// Alias for [`LifecycleNode::try_new`].
+    ///
+    /// # Semantics
+    /// See [`LifecycleNode::try_new`].
+    ///
+    /// # Errors
+    /// See [`LifecycleNode::try_new`].
+    ///
+    /// # Example
+    /// See [`LifecycleNode::try_new`].
+    ///
+    /// # See also
+    /// - [`LifecycleNode::try_new`]
     pub fn from_node(node: Arc<Node>) -> Result<Self> {
         Self::try_new(node)
     }
 
     /// For later slices: allow core-driven gate injection.
+    ///
+    /// # Semantics
+    /// Advanced constructor that reuses an externally owned [`ActivationGate`].
+    ///
+    /// This is primarily useful for tests or for building higher-level orchestration
+    /// that wants to share a gate across multiple managed resources.
+    ///
+    /// # Errors
+    /// Returns an error if lifecycle entities cannot be created on `node`.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use std::sync::{Arc};
+    /// use rclrs::{Context, CreateBasicExecutor};
+    /// use rosrustext_rosrs::lifecycle::{ActivationGate, LifecycleNode};
+    ///
+    /// # fn main() -> rosrustext_rosrs::Result<()> {
+    /// let context = Context::default();
+    /// let executor = context.create_basic_executor();
+    /// let node = Arc::new(executor.create_node("demo")?);
+    /// let gate = Arc::new(ActivationGate::new());
+    /// let _lifecycle = LifecycleNode::try_with_gate(node, gate)?;
+    /// # Ok(()) }
+    /// ```
+    ///
+    /// # See also
+    /// - [`ActivationGate`]
     pub fn try_with_gate(node: Arc<Node>, gate: Arc<ActivationGate>) -> Result<Self> {
         let (completion_tx, completion_rx) = mpsc::channel();
         let ln = Self {
@@ -174,9 +401,44 @@ impl LifecycleNode {
     }
 
     /// Primary constructor with callbacks that receive the lifecycle handle.
+    ///
+    /// # Semantics
+    /// Convenience wrapper around:
+    /// 1) creating an `rclrs::Node` on the provided executor
+    /// 2) enabling lifecycle ROS entities
+    /// 3) installing the provided callbacks
+    ///
+    /// # Errors
+    /// Returns an error if the node or any lifecycle entity cannot be created.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use rclrs::{Context, CreateBasicExecutor};
+    /// use rosrustext_rosrs::lifecycle::{CallbackResult, LifecycleCallbacksWithNode, LifecycleNode};
+    /// use rosrustext_rosrs::State;
+    ///
+    /// struct Callbacks;
+    /// impl LifecycleCallbacksWithNode for Callbacks {
+    ///     fn on_configure(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult { CallbackResult::Success }
+    ///     fn on_activate(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult { CallbackResult::Success }
+    ///     fn on_deactivate(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult { CallbackResult::Success }
+    ///     fn on_cleanup(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult { CallbackResult::Success }
+    ///     fn on_shutdown(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult { CallbackResult::Success }
+    ///     fn on_error(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult { CallbackResult::Success }
+    /// }
+    ///
+    /// # fn main() -> rosrustext_rosrs::Result<()> {
+    /// let context = Context::default();
+    /// let executor = context.create_basic_executor();
+    /// let _lifecycle = LifecycleNode::create_with_callbacks(&executor, "demo", Box::new(Callbacks))?;
+    /// # Ok(()) }
+    /// ```
+    ///
+    /// # See also
+    /// - [`LifecycleNode::create`]
+    /// - [`LifecycleNode::new_with_callbacks`]
     pub fn create_with_callbacks<'a>(
-        executor: &'a Executor,
-        options: impl IntoNodeOptions<'a>,
+        executor: &'a Executor, options: impl IntoNodeOptions<'a>,
         callbacks: Box<dyn LifecycleCallbacksWithNode + Send>,
     ) -> Result<Self> {
         let node = Arc::new(executor.create_node(options)?);
@@ -184,26 +446,104 @@ impl LifecycleNode {
     }
 
     /// Escape hatch: access the underlying rclrs::Node.
+    ///
+    /// # Semantics
+    /// Returns a shared handle to the underlying `rclrs::Node`.
+    ///
+    /// Using the returned node to create publishers/timers will **bypass**
+    /// lifecycle gating. Prefer [`LifecycleNode::create_publisher`] and
+    /// [`LifecycleNode::create_timer_repeating_gated`] when you want managed behavior.
+    ///
+    /// # Errors
+    /// This method does not fail.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// let raw: &std::sync::Arc<rclrs::Node> = lifecycle.node();
+    /// ```
+    ///
+    /// # See also
+    /// - [`LifecycleNode::node_arc`]
     pub fn node(&self) -> &Arc<Node> {
         &self.node
     }
 
     /// Escape hatch: clone the underlying rclrs::Node.
+    ///
+    /// # Semantics
+    /// Like [`LifecycleNode::node`], but clones the `Arc`.
+    ///
+    /// # Errors
+    /// This method does not fail.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// let raw: std::sync::Arc<rclrs::Node> = lifecycle.node_arc();
+    /// ```
+    ///
+    /// # See also
+    /// - [`LifecycleNode::node`]
     pub fn node_arc(&self) -> Arc<Node> {
         Arc::clone(&self.node)
     }
 
     /// Node name after ROS remapping.
+    ///
+    /// # Semantics
+    /// Returns the node name as resolved by ROS remapping rules.
+    ///
+    /// # Errors
+    /// This method does not fail.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// let name = lifecycle.name();
+    /// ```
+    ///
+    /// # See also
+    /// - [`LifecycleNode::namespace`]
     pub fn name(&self) -> String {
         self.node.name()
     }
 
     /// Node namespace after ROS remapping.
+    ///
+    /// # Semantics
+    /// Returns the node namespace as resolved by ROS remapping rules.
+    ///
+    /// # Errors
+    /// This method does not fail.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// let ns = lifecycle.namespace();
+    /// ```
+    ///
+    /// # See also
+    /// - [`LifecycleNode::name`]
     pub fn namespace(&self) -> String {
         self.node.namespace()
     }
 
     /// Create a non-lifecycle service on the underlying node.
+    ///
+    /// # Semantics
+    /// - This service is **not** lifecycle-gated; it remains available regardless
+    ///   of the lifecycle state.
+    /// - Intended for application services that are independent of lifecycle state.
+    ///
+    /// # Errors
+    /// Returns an error if `rclrs` fails to create the service.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// let _svc = lifecycle.create_service::<std_srvs::srv::Trigger, _>("/ping", |_req| {
+    ///     std_srvs::srv::Trigger_Response { success: true, message: "ok".into() }
+    /// })?;
+    /// ```
+    ///
+    /// # See also
+    /// - [`LifecycleNode::create_subscription`]
     pub fn create_service<'a, T, Args>(
         &self, options: impl Into<ServiceOptions<'a>>, callback: impl IntoNodeServiceCallback<T, Args>,
     ) -> Result<Service<T>>
@@ -214,6 +554,21 @@ impl LifecycleNode {
     }
 
     /// Create a non-lifecycle subscription on the underlying node.
+    ///
+    /// # Semantics
+    /// Subscriptions are not lifecycle-gated. Use this for data-plane subscriptions
+    /// that should continue to receive messages in all lifecycle states.
+    ///
+    /// # Errors
+    /// Returns an error if `rclrs` fails to create the subscription.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// let _sub = lifecycle.create_subscription::<std_msgs::msg::String, _>("chatter", |_msg| {})?;
+    /// ```
+    ///
+    /// # See also
+    /// - [`LifecycleNode::create_service`]
     pub fn create_subscription<'a, T, Args>(
         &self, options: impl Into<SubscriptionOptions<'a>>, callback: impl IntoNodeSubscriptionCallback<T, Args>,
     ) -> Result<Subscription<T>>
@@ -224,6 +579,20 @@ impl LifecycleNode {
     }
 
     /// Create a client on the underlying node.
+    ///
+    /// # Semantics
+    /// Clients are not lifecycle-gated.
+    ///
+    /// # Errors
+    /// Returns an error if `rclrs` fails to create the client.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// let _client = lifecycle.create_client::<std_srvs::srv::Trigger>("/ping")?;
+    /// ```
+    ///
+    /// # See also
+    /// - [`LifecycleNode::create_service`]
     pub fn create_client<'a, T>(&self, options: impl Into<ClientOptions<'a>>) -> Result<Client<T>>
     where
         T: rclrs::ServiceIDL,
@@ -232,19 +601,83 @@ impl LifecycleNode {
     }
 
     /// Set activation / deactivation gate state.
+    ///
+    /// # Semantics
+    /// Manually toggles the internal [`ActivationGate`]. In typical usage the
+    /// gate is driven by lifecycle transitions (`Active` ↔ not `Active`), so
+    /// most applications should not need to call this directly.
+    ///
+    /// # Errors
+    /// This method does not fail.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// lifecycle.activate();
+    /// ```
+    ///
+    /// # See also
+    /// - [`LifecycleNode::deactivate`]
+    /// - [`LifecycleNode::is_active`]
     pub fn activate(&self) {
         self.gate.activate();
     }
+    /// Set activation / deactivation gate state.
+    ///
+    /// # Semantics
+    /// See [`LifecycleNode::activate`].
+    ///
+    /// # Errors
+    /// This method does not fail.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// lifecycle.deactivate();
+    /// ```
+    ///
+    /// # See also
+    /// - [`LifecycleNode::activate`]
+    /// - [`LifecycleNode::is_active`]
     pub fn deactivate(&self) {
         self.gate.deactivate();
     }
 
     /// Get activation gate state.
+    ///
+    /// # Semantics
+    /// Returns `true` when the node is considered “active” for managed-resource
+    /// gating purposes.
+    ///
+    /// # Errors
+    /// This method does not fail.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// if lifecycle.is_active() { /* … */ }
+    /// ```
+    ///
+    /// # See also
+    /// - [`LifecycleNode::activate`]
+    /// - [`LifecycleNode::deactivate`]
     pub fn is_active(&self) -> bool {
         self.gate.is_active()
     }
 
     /// Create a publisher managed by the lifecycle node's activation gate.
+    ///
+    /// # Semantics
+    /// Returns a [`ManagedPublisher`] that suppresses publishes while inactive.
+    ///
+    /// # Errors
+    /// Returns an error if `rclrs` fails to create the underlying publisher.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// let pub_ = lifecycle.create_publisher::<std_msgs::msg::String>("chatter")?;
+    /// ```
+    ///
+    /// # See also
+    /// - [`ManagedPublisher`]
+    /// - [`ManagedPublisher::publish_with_outcome`]
     pub fn create_publisher<T>(&self, topic: &str) -> Result<ManagedPublisher<T>>
     where
         T: rclrs::MessageIDL,
@@ -254,6 +687,30 @@ impl LifecycleNode {
     }
 
     /// Create a repeating timer managed by the lifecycle node's activation gate.
+    ///
+    /// # Semantics
+    /// - Creates a repeating `rclrs::Timer` that fires at `period`.
+    /// - On each tick, the callback runs **only if** the node is active.
+    /// - While inactive, ticks are silently skipped (the timer still fires).
+    ///
+    /// Timer replacement guidance:
+    /// - Keep the returned [`ManagedTimer`] alive to keep the timer installed.
+    /// - To change the period or callback, drop the existing handle and create
+    ///   a new gated timer (e.g. store it in an `Option<ManagedTimer>` and replace).
+    ///
+    /// # Errors
+    /// Returns an error if `rclrs` fails to create the timer.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// use std::time::Duration;
+    /// let _timer = lifecycle.create_timer_repeating_gated(Duration::from_millis(100), move || {
+    ///     // Runs only while Active
+    /// })?;
+    /// ```
+    ///
+    /// # See also
+    /// - [`ManagedTimer`]
     pub fn create_timer_repeating_gated<F>(&self, period: Duration, mut callback: F) -> Result<ManagedTimer>
     where
         F: FnMut() + Send + 'static,
@@ -271,34 +728,39 @@ impl LifecycleNode {
 
     /// Internal helper: Apply completion outcome to state machine and trigger side effects.
     fn handle_completion_outcome(&self, outcome: AsyncOutcome) {
-         let mut machine_guard = self.machine.lock().expect("machine mutex poisoned");
-         // We rely on machine valid state.
-         let result = match machine_guard.complete(outcome.input) {
-             Ok(res) => res,
-             Err(_e) => {
-                 // Log error?
-                 // "Called complete() but no transition is in flight" -> ignore
-                 return;
-             }
-         };
-         drop(machine_guard);
-         
-         // Side effects
-          if result.gate_active {
-             self.gate.activate();
-         } else {
-             self.gate.deactivate();
-         }
+        let mut machine_guard = self.machine.lock().expect("machine mutex poisoned");
+        // We rely on machine valid state.
+        let result = match machine_guard.complete(outcome.input) {
+            Ok(res) => res,
+            Err(_e) => {
+                // Log error?
+                // "Called complete() but no transition is in flight" -> ignore
+                return;
+            }
+        };
+        drop(machine_guard);
 
-         #[cfg(feature = "bond")]
-         if let Some(agent) = self.bond.lock().expect("bond mutex poisoned").as_ref() {
-             agent.set_active(result.gate_active);
-         }
+        // Side effects
+        if result.gate_active {
+            self.gate.activate();
+        } else {
+            self.gate.deactivate();
+        }
 
-         if let Some(pub_) = self.transition_event_pub.lock().expect("transition_event_pub mutex poisoned").as_ref() {
-             let evt = utils::make_transition_event(result.start_state, result.final_state, outcome.transition_id, outcome.label);
-             let _ = pub_.publish(evt);
-         }
+        #[cfg(feature = "bond")]
+        if let Some(agent) = self.bond.lock().expect("bond mutex poisoned").as_ref() {
+            agent.set_active(result.gate_active);
+        }
+
+        if let Some(pub_) = self.transition_event_pub.lock().expect("transition_event_pub mutex poisoned").as_ref() {
+            let evt = utils::make_transition_event(
+                result.start_state,
+                result.final_state,
+                outcome.transition_id,
+                outcome.label,
+            );
+            let _ = pub_.publish(evt);
+        }
     }
 }
 
@@ -380,11 +842,10 @@ impl LifecycleNode {
                     Err(_) => return rosrustext_msgs::lifecycle_msgs::srv::ChangeState_Response { success: false },
                 };
 
-                
                 // Store metadata for the async worker
                 let label = spec.label;
                 let transition_id = spec.transition_id;
-                
+
                 drop(machine_guard);
 
                 // 2. Spawn worker (or run inline if delay=0)
@@ -456,27 +917,29 @@ impl LifecycleNode {
                 let guard = machine.lock().expect("machine mutex poisoned");
                 // If transitioning, no transitions available (ROS 2 behavior generally)
                 // machine.current_state() handles in-flight logic?
-                // Actually `begin` rejects if in-flight. 
-                // We should expose `is_in_flight` or similar? 
+                // Actually `begin` rejects if in-flight.
+                // We should expose `is_in_flight` or similar?
                 // Or just try?
                 // `available_transitions` utility takes `State`.
                 let current = guard.current_state();
                 // If we are in a transition state (Configuring etc), available_transitions returns empty.
                 // So this works naturally if `current_state()` returns the intermediate state.
-                
-                let transitions: Vec<TransitionDescription> = utils::transition_entries_for_start(current)
-                        .into_iter()
-                        .map(|entry| {
-                            utils::transition_description(
-                                entry.spec.start,
-                                entry.goal,
-                                entry.spec.transition_id,
-                                entry.spec.label,
-                            )
-                        })
-                        .collect();
 
-                rosrustext_msgs::lifecycle_msgs::srv::GetAvailableTransitions_Response { available_transitions: transitions }
+                let transitions: Vec<TransitionDescription> = utils::transition_entries_for_start(current)
+                    .into_iter()
+                    .map(|entry| {
+                        utils::transition_description(
+                            entry.spec.start,
+                            entry.goal,
+                            entry.spec.transition_id,
+                            entry.spec.label,
+                        )
+                    })
+                    .collect();
+
+                rosrustext_msgs::lifecycle_msgs::srv::GetAvailableTransitions_Response {
+                    available_transitions: transitions,
+                }
             },
         )?;
 

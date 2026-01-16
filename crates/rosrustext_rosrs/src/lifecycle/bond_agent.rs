@@ -16,10 +16,28 @@ fn nav2_bond_qos() -> QoSProfile {
     QoSProfile::default().keep_last(1).reliable().transient_local()
 }
 
-/// Lifecycle-owned bond publisher + heartbeat timer.
-/// - publishes /bond Status
-/// - active only when lifecycle state is Active
-/// - publishes an immediate "inactive" once on active->inactive edge
+/// Lifecycle-owned `/bond` publisher + heartbeat timer (Nav2 compatibility).
+///
+/// # Semantics
+/// - Publishes `bond/msg/Status` on `/bond` using Nav2-required QoS.
+/// - When active, publishes periodic heartbeats (`active=true`).
+/// - On `inactive -> active`, publishes one `active=true` immediately (Nav2 requirement).
+/// - On `active -> inactive`, publishes one `active=false` immediately.
+///
+/// `BondAgent` is typically owned by [`crate::lifecycle::LifecycleNode`] when the
+/// crate feature `bond` is enabled.
+///
+/// # Errors
+/// Constructors return [`crate::Error`] if the publisher or timer cannot be created.
+///
+/// # Example
+/// ```rust,ignore
+/// // Normally you enable this via LifecycleNode with the `bond` feature.
+/// ```
+///
+/// # See also
+/// - [Lifecycle parity notes](https://github.com/convyares-FCSL/rosrustext_fcsl/blob/main/parity.md)
+/// - [`crate::lifecycle::LifecycleNode`]
 pub struct BondAgent {
     node_name: String,
     instance_id: String,
@@ -34,6 +52,24 @@ pub struct BondAgent {
 }
 
 impl BondAgent {
+    /// Create a bond publisher and install a heartbeat timer.
+    ///
+    /// # Semantics
+    /// - Creates a `/bond` publisher with Nav2-required QoS.
+    /// - Installs a repeating timer that publishes heartbeats while active.
+    /// - Starts inactive (`set_active(false)`).
+    ///
+    /// # Errors
+    /// Returns an error if `rclrs` fails to create the publisher or timer.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// let agent = BondAgent::new(node, std::time::Duration::from_secs(1), std::time::Duration::from_secs(4))?;
+    /// agent.set_active(true);
+    /// ```
+    ///
+    /// # See also
+    /// - [`BondAgent::set_active`]
     pub fn new(node: Arc<Node>, heartbeat_period: Duration, heartbeat_timeout: Duration) -> Result<Self> {
         let status_pub = Arc::new(node.create_publisher::<Status>("/bond".qos(nav2_bond_qos()))?);
 
@@ -86,6 +122,23 @@ impl BondAgent {
     /// Called by LifecycleNode whenever state changes.
     /// - Active => start heartbeats
     /// - Not Active => stop heartbeats and publish exactly one inactive on edge
+    ///
+    /// # Semantics
+    /// - When enabling (`false -> true`), publishes one immediate `active=true`.
+    /// - When disabling (`true -> false`), publishes one immediate `active=false`.
+    /// - While enabled, periodic heartbeats are published by the internal timer.
+    ///
+    /// # Errors
+    /// This method does not return errors; publish failures are ignored.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// agent.set_active(true);
+    /// agent.set_active(false);
+    /// ```
+    ///
+    /// # See also
+    /// - [`crate::lifecycle::LifecycleNode::is_active`]
     pub fn set_active(&self, enabled: bool) {
         let prev = self.active.swap(enabled, Ordering::Relaxed);
         if !prev && enabled {
