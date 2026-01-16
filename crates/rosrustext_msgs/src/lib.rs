@@ -7,5 +7,6 @@
 pub mod bond;
 pub mod builtin_interfaces;
 pub mod lifecycle_msgs;
+#[cfg(feature = "rosrustext_interfaces")]
 pub mod rosrustext_interfaces;
 pub mod std_msgs;

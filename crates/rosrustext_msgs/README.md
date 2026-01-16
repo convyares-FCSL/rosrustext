@@ -7,7 +7,7 @@ This crate contains generated Rust code for:
 - `bond`
 - `std_msgs`
 - `builtin_interfaces`
-- Custom `rosrustext_interfaces`
+- Custom `rosrustext_interfaces` (non-standard, behind feature `rosrustext_interfaces`)
 
 It is designed to allow `rosrustext` crates to be published to crates.io without requiring a local ROS 2 installation or `colcon` build environment for message generation.
 

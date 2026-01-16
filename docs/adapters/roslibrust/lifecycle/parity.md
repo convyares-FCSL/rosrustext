@@ -19,7 +19,7 @@ This file answers:
 | `get_state` | `lifecycle_msgs/srv/GetState` | ✅ Implemented | Provided via Rust proxy tool |
 | `get_available_transitions` | `lifecycle_msgs/srv/GetAvailableTransitions` | ✅ Implemented | Provided via Rust proxy tool |
 | `get_available_states` | `lifecycle_msgs/srv/GetAvailableStates` | ✅ Implemented | Provided via Rust proxy tool |
-| `get_transition_graph` | `rosrustext_interfaces/srv/GetTransitionGraph` | ✅ Implemented | Custom introspection service (Jazzy-compatible) |
+| `get_transition_graph` | `rosrustext_interfaces/srv/GetTransitionGraph` | ✅ Implemented | Non-standard introspection (not required for Nav2) |
 | `create` | internal | ❌ Omitted | Wrapper-only concern |
 | `destroy` | internal | ❌ Omitted | Wrapper-only concern |
 

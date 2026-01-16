@@ -31,8 +31,8 @@ ros2 = []
 lifecycle_msgs = []
 # Nav2 bond support (requires ros2).
 bond = ["ros2"]
-# Nav2 tooling parity (requires ros2).
-transition_graph = ["ros2"]
+# Non-standard lifecycle introspection (requires ros2 + rosrustext_interfaces).
+transition_graph = ["ros2", "rosrustext_msgs/rosrustext_interfaces"]
 # docs.rs-only shim to build without a ROS installation (not for users).
 docsrs = ["rclrs/use_ros_shim", "rosrustext_msgs/docsrs"]
 

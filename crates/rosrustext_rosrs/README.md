@@ -90,7 +90,8 @@ cargo build \
 * `ros2`: enables ROS-facing tooling parity (parameter services/events and lifecycle services)
   and relies on `rclrs::vendor::rcl_interfaces`.
 * `bond`: publishes `/bond` heartbeats for Nav2 lifecycle manager compatibility (requires `ros2`).
-* `transition_graph`: enables `GetTransitionGraph` for Nav2 tooling parity (requires `ros2`).
+* `transition_graph`: enables non-standard `GetTransitionGraph` introspection (requires `ros2` and
+  a ROS package providing `rosrustext_interfaces`; not required for Nav2).
 * `lifecycle_msgs`: exposes lifecycle message/service surfaces; no hidden deps.
 * `docsrs`: docs.rs-only shim for ROS-free builds; not intended for users.
 
