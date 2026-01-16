@@ -1,19 +1,23 @@
 [package]
 name = "rosrustext_lifecycle_proxy"
-version = "0.3.2"
-edition.workspace = true
-license.workspace = true
-authors.workspace = true
-repository.workspace = true
+version = "0.4.0"
+edition = "2021"
+license = "Apache-2.0"
+authors = ["Carl von Ayres <cvonayres@fuelcellsystems.co.uk>"]
+repository = "https://github.com/convyares-FCSL/rosrustext"
+homepage = "https://github.com/convyares-FCSL/rosrustext"
 description = "Rust lifecycle proxy for rosrustext_roslibrust nodes over rosbridge"
+publish = false
 
 [dependencies]
 roslibrust = { version = "0.18.0", features = ["rosbridge", "codegen"] }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread", "sync", "time"] }
-tracing = { workspace = true }
+tokio = { version = "1.48", features = ["macros", "rt-multi-thread", "sync", "time"] }
+tracing = "0.1"
 tracing-subscriber = "0.3"
-rosrustext_core = { version = "0.3.2", path = "../../../rosrustext_core" }
-rosrustext_roslibrust = { version = "0.3.2", path = "../.." }
+rosrustext_core = { version = "0.4.0", path = "../../../rosrustext_core" }
+rosrustext_roslibrust = { version = "0.4.0", path = "../.." }
 
 [build-dependencies]
 roslibrust = { version = "0.18.0", features = ["codegen"] }
+
+[workspace]

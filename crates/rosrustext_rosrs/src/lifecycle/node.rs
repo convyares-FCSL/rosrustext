@@ -20,9 +20,6 @@ use rclrs::{
 };
 use rosrustext_core::lifecycle::{ActivationGate, CallbackResult, CompleteInput, State, StateMachine, Transition};
 
-#[cfg(feature = "transition_graph")]
-use rosrustext_msgs::rosrustext_interfaces::srv::GetTransitionGraph;
-
 #[cfg(feature = "bond")]
 use super::BondAgent;
 use super::{utils, ManagedPublisher, ManagedTimer};
@@ -775,8 +772,6 @@ impl LifecycleNode {
         self.enable_completion_pump()?;
         self.enable_get_available_states_service()?;
         self.enable_get_available_transitions_service()?;
-        #[cfg(feature = "transition_graph")]
-        self.enable_get_transition_graph_service()?;
         self.enable_bond()?;
         Ok(())
     }
@@ -976,41 +971,6 @@ impl LifecycleNode {
         })?;
 
         self.keep_internal(timer);
-        Ok(())
-    }
-
-    /// Enable rosrustext_interfaces/srv/GetTransitionGraph at "/<node>/get_transition_graph".
-    #[cfg(feature = "transition_graph")]
-    pub(crate) fn enable_get_transition_graph_service(&self) -> Result<()> {
-        let service_name = format!("/{}/get_transition_graph", self.node.name());
-
-        let svc = self.node.create_service::<GetTransitionGraph, _>(
-            &service_name,
-            move |_req: rosrustext_msgs::rosrustext_interfaces::srv::GetTransitionGraph_Request| {
-                let states = vec![
-                    utils::ros_state_msg(State::Unconfigured),
-                    utils::ros_state_msg(State::Inactive),
-                    utils::ros_state_msg(State::Active),
-                    utils::ros_state_msg(State::Finalized),
-                ];
-
-                let mut transitions = Vec::new();
-                for start in [State::Unconfigured, State::Inactive, State::Active, State::Finalized] {
-                    transitions.extend(utils::transition_entries_for_start(start).into_iter().map(|entry| {
-                        utils::transition_description(
-                            entry.spec.start,
-                            entry.goal,
-                            entry.spec.transition_id,
-                            entry.spec.label,
-                        )
-                    }));
-                }
-
-                rosrustext_msgs::rosrustext_interfaces::srv::GetTransitionGraph_Response { states, transitions }
-            },
-        )?;
-
-        self.keep_internal(svc);
         Ok(())
     }
 

@@ -134,7 +134,6 @@ Adapters map the core semantics onto specific Rust ROS stacks.
 
   * Lifecycle proxy
   * Bond heartbeat
-  * Transition graph service
 
 #### `rosrustext_rosrs` *(complete, ROS workspace only)*
 
@@ -143,7 +142,6 @@ Adapters map the core semantics onto specific Rust ROS stacks.
 * Parameters parity uses `rclrs::vendor::rcl_interfaces` for `ParameterEvent` and
   parameter services; we pin `rclrs` accordingly (currently 0.6.x / `rosidl_runtime_rs` 0.5.x)
 * Bond heartbeat behind feature `bond` (Nav2 QoS)
-* Transition graph behind feature `transition_graph` (custom interface)
 * **Not publishable** (ROS msg crates come from a colcon workspace)
 
 Adapters are **replaceable**, not competing.
@@ -164,7 +162,6 @@ Current lifecycle support includes:
 **roslibrust adapter**
 * All standard ROS 2 lifecycle services
 * Transition events
-* Transition graph introspection
 * Busy-state rejection
 * ErrorProcessing semantics
 * Bond compatibility for Nav2
@@ -178,7 +175,6 @@ Current lifecycle support includes:
 * Lifecycle services + `transition_event` (success/failure/error)
 * Busy rejection + non-blocking ChangeState timing contract
 * Bond heartbeat (feature `bond`, Nav2 QoS)
-* Transition graph (feature `transition_graph`)
 * Verified with CLI + Nav2 smoke scripts in a ROS workspace
 
 ---
@@ -197,6 +193,9 @@ Testing is layered by intent:
    * `ros2 lifecycle`
    * Python managers
    * Nav2
+
+ROS-native adapter tests require ROS Jazzy to be sourced and are run from the
+dev_ws environment.
 
 Shell scripts are intentional:
 they test **real ROS behavior**, not mocked APIs.
@@ -258,7 +257,12 @@ Published or publish-ready:
 Not published:
 
 * `rosrustext_rosrs` (ROS workspace only; depends on ROS msg crates generated in colcon)
-* ROS msg crates (`lifecycle_msgs`, `bond`, `rosrustext_interfaces`) used by the ROS workspace overlay
+* ROS msg crates (`lifecycle_msgs`, `bond`) used by the ROS workspace overlay
+* `rosrustext_lifecycle_proxy` (tool-only; not published)
+
+Docs build on docs.rs without ROS. Runtime builds and tests require ROS 2 Jazzy
+with the environment sourced (`/opt/ros/jazzy/setup.bash`); dev_ws is recommended
+for rclrs-backed adapters.
 
 See `TODO.md` and parity documents for tracked work.
 

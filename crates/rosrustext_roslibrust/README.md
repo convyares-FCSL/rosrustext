@@ -18,7 +18,6 @@ Upstream library:
   - `get_state`
   - `get_available_states`
   - `get_available_transitions`
-  - `get_transition_graph`
 - `transition_event` publisher
 - Busy-state rejection
 - ErrorProcessing semantics

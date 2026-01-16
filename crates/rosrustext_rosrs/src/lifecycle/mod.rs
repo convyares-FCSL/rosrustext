@@ -66,8 +66,6 @@
 //!   `get_available_states`, and `get_available_transitions`.
 //! - Feature `bond` publishes `/bond` with Nav2-required QoS and publishes an
 //!   *immediate* `active=true` message on the `inactive -> active` edge.
-//! - Feature `transition_graph` exposes a non-standard `get_transition_graph`
-//!   introspection service.
 //!
 //! # Known limitations / intentional differences
 //! - Only publishers and repeating timers created via this module are lifecycle-gated.
@@ -98,10 +96,6 @@ pub use managed_timer::ManagedTimer;
 mod bond_agent;
 #[cfg(feature = "bond")]
 pub use bond_agent::BondAgent;
-
-// Optional custom introspection service type (Jazzy compatibility)
-#[cfg(feature = "transition_graph")]
-pub use rosrustext_msgs::rosrustext_interfaces::srv::GetTransitionGraph;
 
 // LifecycleNode (thin wrapper around Arc<rclrs::Node> + gate)
 mod node;

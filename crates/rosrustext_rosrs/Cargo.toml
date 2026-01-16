@@ -1,6 +1,6 @@
 [package]
 name = "rosrustext_rosrs"
-version = "0.2.5"
+version = "0.3.0"
 edition = "2021"
 license = "Apache-2.0"
 authors = ["Carl von Ayres <cvonayres@fuelcellsystems.co.uk>"]
@@ -12,12 +12,12 @@ readme = "README.md"
 
 [dependencies]
 # Core semantics (transport-agnostic)
-rosrustext_core = { path = "../rosrustext_core", version = "0.3.2" }
+rosrustext_core = { path = "../rosrustext_core", version = "0.4.0" }
 
 # ROS2 Rust client library (Jazzy dev_ws proven path/patch setup)
-rclrs = "0.6"
+rclrs = { version = "0.6", optional = true }
 # Messages bundled in workspace crate for publishing
-rosrustext_msgs = { path = "../rosrustext_msgs", version = "0.1.3" }
+rosrustext_msgs = { path = "../rosrustext_msgs", version = "0.2.0" }
 
 # Errors + logging (match style you already use elsewhere)
 thiserror = "2.0"
@@ -26,15 +26,13 @@ tracing = "0.1"
 [features]
 default = []
 # ros2 enables ROS-facing tooling parity that relies on rclrs vendor interfaces.
-ros2 = []
+ros2 = ["dep:rclrs"]
 # Gates lifecycle message/service surfaces; no hidden deps.
 lifecycle_msgs = []
 # Nav2 bond support (requires ros2).
 bond = ["ros2"]
-# Non-standard lifecycle introspection (requires ros2 + rosrustext_interfaces).
-transition_graph = ["ros2", "rosrustext_msgs/rosrustext_interfaces"]
 # docs.rs-only shim to build without a ROS installation (not for users).
-docsrs = ["rclrs/use_ros_shim", "rosrustext_msgs/docsrs"]
+docsrs = ["dep:rclrs", "rclrs/use_ros_shim", "rosrustext_msgs/docsrs"]
 
 [dev-dependencies]
 # keep empty for now; slice-1 validation lives in rosrustext_dev_ws

@@ -1,48 +1,15 @@
 use std::collections::BTreeSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rerun-if-env-changed=AMENT_PREFIX_PATH");
 
-    let packages = ["lifecycle_msgs", "bond", "std_msgs", "rosrustext_interfaces"];
+    let packages = ["lifecycle_msgs", "bond", "std_msgs"];
     let mut search_paths = Vec::new();
-
-    let local_override = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("interfaces");
-    let local_bond = local_override.join("bond");
-    let use_local_bond = local_bond.join("package.xml").is_file();
-    if local_override.is_dir() {
-        search_paths.push(local_override);
-    }
-    if use_local_bond {
-        search_paths.push(local_bond);
-    }
-
-    if let Ok(path) = std::env::var("ROSRUSTEXT_INTERFACES_PATH") {
-        let candidate = PathBuf::from(path);
-        if candidate.join("package.xml").is_file() && !search_paths.contains(&candidate) {
-            search_paths.push(candidate.clone());
-        }
-        let candidate_bond = candidate.join("bond");
-        if candidate_bond.join("package.xml").is_file() && !search_paths.contains(&candidate_bond) {
-            search_paths.push(candidate_bond);
-        }
-    } else {
-        let repo_interfaces = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("interfaces");
-        if repo_interfaces.join("package.xml").is_file() && !search_paths.contains(&repo_interfaces) {
-            search_paths.push(repo_interfaces.clone());
-        }
-        let repo_bond = repo_interfaces.join("bond");
-        if repo_bond.join("package.xml").is_file() && !search_paths.contains(&repo_bond) {
-            search_paths.push(repo_bond);
-        }
-    }
 
     if let Some(prefixes) = std::env::var_os("AMENT_PREFIX_PATH") {
         for prefix in std::env::split_paths(&prefixes) {
             for pkg in packages {
-                if pkg == "bond" && use_local_bond {
-                    continue;
-                }
                 let candidate = prefix.join("share").join(pkg);
                 if candidate.is_dir() && !search_paths.contains(&candidate) {
                     search_paths.push(candidate);
@@ -52,14 +19,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     for pkg in packages {
-        if pkg == "bond" && use_local_bond {
-            continue;
-        }
         let fallback = PathBuf::from(format!("/opt/ros/jazzy/share/{pkg}"));
         if fallback.is_dir() && !search_paths.contains(&fallback) {
             search_paths.push(fallback);
         }
     }
+
+    normalize_bond_constants(&mut search_paths)?;
 
     let mut found = BTreeSet::new();
     for pkg in packages {
@@ -69,9 +35,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 present = true;
                 break;
             }
-        }
-        if !present && pkg == "bond" && use_local_bond {
-            present = true;
         }
         if present {
             found.insert(pkg);
@@ -96,5 +59,72 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("cargo:rerun-if-changed={}", path.display());
     }
 
+    Ok(())
+}
+
+fn normalize_bond_constants(search_paths: &mut Vec<PathBuf>) -> Result<(), Box<dyn std::error::Error>> {
+    let source_dir = search_paths
+        .iter()
+        .find(|path| path.file_name().is_some_and(|name| name == "bond") && path.join("package.xml").is_file())
+        .cloned();
+    let Some(source_dir) = source_dir else {
+        return Ok(());
+    };
+
+    let out_dir = PathBuf::from(std::env::var("OUT_DIR")?);
+    let patched_dir = out_dir.join("rosrustext_bond");
+    if patched_dir.exists() {
+        std::fs::remove_dir_all(&patched_dir)?;
+    }
+
+    copy_dir_all(&source_dir, &patched_dir)?;
+
+    let constants_path = patched_dir.join("msg").join("Constants.msg");
+    if constants_path.is_file() {
+        let content = std::fs::read_to_string(&constants_path)?;
+        let mut updated = Vec::new();
+        for line in content.lines() {
+            updated.push(normalize_string_constant(line));
+        }
+        std::fs::write(&constants_path, updated.join("\n"))?;
+    }
+
+    search_paths.retain(|path| {
+        !(path.file_name().is_some_and(|name| name == "bond") && path.join("package.xml").is_file())
+    });
+    search_paths.insert(0, patched_dir);
+    Ok(())
+}
+
+fn normalize_string_constant(line: &str) -> String {
+    let Some((lhs, rhs)) = line.split_once('=') else {
+        return line.to_string();
+    };
+    if !lhs.trim_start().starts_with("string ") {
+        return line.to_string();
+    }
+    let rhs = rhs.trim().trim_end_matches(';').trim();
+    if rhs.len() >= 2 {
+        let first = rhs.chars().next().unwrap();
+        let last = rhs.chars().last().unwrap();
+        if first == last && (first == '"' || first == '\'') {
+            return format!("{}={}", lhs.trim_end(), rhs);
+        }
+    }
+    format!("{}=\"{}\"", lhs.trim_end(), rhs)
+}
+
+fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(dst)?;
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        let dest_path = dst.join(entry.file_name());
+        if file_type.is_dir() {
+            copy_dir_all(&entry.path(), &dest_path)?;
+        } else {
+            std::fs::copy(entry.path(), dest_path)?;
+        }
+    }
     Ok(())
 }

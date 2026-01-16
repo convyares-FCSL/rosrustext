@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 DEFAULT_ROS2_WS_ROOT="$ROOT_DIR/../ros2_rust_ws/ros2_ws"
+if [[ -d "/home/ecm/fcsl/ros2_rust_ws/ros2_ws" ]]; then
+  DEFAULT_ROS2_WS_ROOT="/home/ecm/fcsl/ros2_rust_ws/ros2_ws"
+fi
 
 if [[ -z "${ROS2_WS_ROOT:-}" ]]; then
   if [[ -d "$DEFAULT_ROS2_WS_ROOT" ]]; then
@@ -11,6 +14,7 @@ if [[ -z "${ROS2_WS_ROOT:-}" ]]; then
     ROS2_WS_ROOT="/home/ecm/ros2_rust_ws/ros2_ws"
   fi
 fi
+export ROS2_WS_ROOT
 
 source_ros_setup() {
   local setup_file="$1"
@@ -27,7 +31,6 @@ source_ros_setup "/opt/ros/jazzy/setup.bash"
 source_ros_setup "$ROS2_WS_ROOT/install/setup.bash"
 
 TESTS=(
-  "scripts/test/roslibrust/lifecycle/test_transition_graph.sh"
   "scripts/test/roslibrust/lifecycle/test_python_lifecycle_manager.sh"
   "scripts/test/roslibrust/lifecycle/test_nav2_bond.sh"
   "scripts/test/roslibrust/lifecycle/test_lifecycle_stress.sh"

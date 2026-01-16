@@ -8,7 +8,6 @@ ROSBRIDGE_NODE_NAME="${ROSBRIDGE_NODE_NAME#/}"
 ROSBRIDGE_LOG_LEVEL="${ROSBRIDGE_LOG_LEVEL:-warn}"
 BRIDGE_URL="${BRIDGE_URL:-ws://localhost:9090}"
 BRIDGE_PORT="${BRIDGE_PORT:-}"
-ROSRUSTEXT_INTERFACES_PATH="${ROSRUSTEXT_INTERFACES_PATH:-$ROOT_DIR/interfaces/rosrustext_interfaces}"
 
 if [[ "$BRIDGE_URL" =~ ^ws://[^:/]+:([0-9]+)$ ]]; then
   if [[ -z "$BRIDGE_PORT" ]]; then
@@ -66,23 +65,8 @@ filter_prefix_path() {
 if [[ "${SKIP_BUILD:-0}" != "1" ]]; then
   filter_prefix_path AMENT_PREFIX_PATH
   filter_prefix_path CMAKE_PREFIX_PATH
-  if [[ -n "$ROSRUSTEXT_INTERFACES_PATH" ]]; then
-    build_dir="$ROS2_WS_ROOT/build/rosrustext_interfaces"
-    if [[ -f "$build_dir/CMakeCache.txt" ]]; then
-      current_source=$(rg -n "^CMAKE_HOME_DIRECTORY:INTERNAL=" "$build_dir/CMakeCache.txt" \
-        | head -n 1 | cut -d= -f2-)
-      desired_source=$(readlink -f "$ROSRUSTEXT_INTERFACES_PATH" || true)
-      if [[ -n "$current_source" && -n "$desired_source" && "$current_source" != "$desired_source" ]]; then
-        rm -rf "$build_dir"
-      fi
-    fi
-  fi
   packages=(hyfleet_interfaces)
   base_paths=("$ROS2_WS_ROOT/src")
-  if [[ -d "$ROSRUSTEXT_INTERFACES_PATH" ]]; then
-    packages+=(rosrustext_interfaces)
-    base_paths+=("$ROSRUSTEXT_INTERFACES_PATH")
-  fi
   (cd "$ROS2_WS_ROOT" && colcon build --packages-select "${packages[@]}" --base-paths "${base_paths[@]}")
 fi
 

@@ -97,14 +97,6 @@ impl LifecycleService {
         node.handle_get_available_states(req)
     }
 
-    /// DTO handler: GetTransitionGraph
-    pub fn handle_get_transition_graph(
-        &self, req: dtos::get_transition_graph::Request,
-    ) -> rosrustext_core::error::Result<dtos::get_transition_graph::Response> {
-        let node = self.node.lock().expect("lifecycle node poisoned");
-        node.handle_get_transition_graph(req)
-    }
-
     /// Best-effort graceful shutdown:
     /// - picks the correct shutdown transition id for the node's current state
     /// - drives the lifecycle so gate/callbacks run

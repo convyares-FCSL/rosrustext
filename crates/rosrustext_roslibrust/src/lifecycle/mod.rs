@@ -4,7 +4,6 @@
 //!
 //! Exposes application-facing lifecycle primitives while keeping core semantics in rosrustext_core.
 
-pub use rosrustext_core::lifecycle::{transition_graph, TransitionEdge, TransitionGraph};
 /// Re-export core lifecycle types
 pub use rosrustext_core::lifecycle::{ActivationGate, CallbackResult, LifecycleCallbacks};
 

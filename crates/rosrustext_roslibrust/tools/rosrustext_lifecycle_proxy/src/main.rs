@@ -14,7 +14,7 @@ use rosrustext_lifecycle_proxy::proxy_state::{ProxyLifecycle, TimeoutOutcome};
 use rosrustext_lifecycle_proxy::utils::{
     backend_path, frontend_service, log_core_error, ros_state, ros_transition_description, transport_error,
     BACKEND_NAMESPACE, SERVICE_CHANGE_STATE, SERVICE_GET_AVAILABLE_STATES, SERVICE_GET_AVAILABLE_TRANSITIONS,
-    SERVICE_GET_STATE, SERVICE_GET_TRANSITION_GRAPH, TOPIC_BOND, TOPIC_TRANSITION_EVENT,
+    SERVICE_GET_STATE, TOPIC_BOND, TOPIC_TRANSITION_EVENT,
 };
 use rosrustext_lifecycle_proxy::{
     bond::Status as BondStatus,
@@ -24,7 +24,6 @@ use rosrustext_lifecycle_proxy::{
         GetAvailableTransitionsResponse, GetState, GetStateRequest, GetStateResponse,
         TransitionEvent as RosTransitionEvent,
     },
-    rosrustext_interfaces::{GetTransitionGraph, GetTransitionGraphRequest, GetTransitionGraphResponse},
 };
 use rosrustext_roslibrust::lifecycle::{ros_transition_id, transition_from_ros_id};
 
@@ -116,7 +115,6 @@ async fn main() -> CoreResult<()> {
     let get_state_srv = frontend_service(&config.target_node, SERVICE_GET_STATE);
     let get_available_states_srv = frontend_service(&config.target_node, SERVICE_GET_AVAILABLE_STATES);
     let get_available_transitions_srv = frontend_service(&config.target_node, SERVICE_GET_AVAILABLE_TRANSITIONS);
-    let get_transition_graph_srv = frontend_service(&config.target_node, SERVICE_GET_TRANSITION_GRAPH);
 
     info!(
         "proxy started node_name={} target=/{}/ bridge={} backend_ns=/{}/{}",
@@ -300,27 +298,6 @@ async fn main() -> CoreResult<()> {
         )
         .await
         .map_err(|err| transport_error("advertise get_available_transitions", err))?;
-
-    let _get_transition_graph_handle = ros_server
-        .advertise_service::<GetTransitionGraph, _>(&get_transition_graph_srv, move |req: GetTransitionGraphRequest| {
-            info!("get_transition_graph request");
-            let _ = req;
-            let graph =
-                rosrustext_core::lifecycle::transition_graph().inspect_err(|err| log_core_error(err.clone()))?;
-            let states: Vec<_> = graph.states.into_iter().map(ros_state).collect();
-            let transitions = graph
-                .transitions
-                .into_iter()
-                .map(|edge| {
-                    ros_transition_description(edge.start, edge.transition)
-                        .inspect_err(|err| log_core_error(err.clone()))
-                })
-                .collect::<CoreResult<Vec<_>>>()?;
-            info!("get_transition_graph response states={} transitions={}", states.len(), transitions.len());
-            Ok(GetTransitionGraphResponse { states, transitions })
-        })
-        .await
-        .map_err(|err| transport_error("advertise get_transition_graph", err))?;
 
     let transition_event_topic = frontend_service(&config.target_node, TOPIC_TRANSITION_EVENT);
     let transition_pub = Arc::new(

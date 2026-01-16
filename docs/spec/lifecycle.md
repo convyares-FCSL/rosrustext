@@ -21,9 +21,6 @@ Required services:
 - `get_available_transitions` — `lifecycle_msgs/srv/GetAvailableTransitions`
 - `get_available_states` — `lifecycle_msgs/srv/GetAvailableStates`
 
-Optional (non-standard introspection extension, not required for Nav2):
-- `get_transition_graph` — `rosrustext_interfaces/srv/GetTransitionGraph`
-
 Required topic:
 - `transition_event` — `lifecycle_msgs/msg/TransitionEvent`
 

@@ -11,7 +11,6 @@
 
 mod engine;
 mod gate;
-mod graph;
 mod machine;
 mod state;
 mod transition;
@@ -21,7 +20,6 @@ pub use engine::{
     LifecycleCallbacks,
 };
 pub use gate::ActivationGate;
-pub use graph::{transition_graph, TransitionEdge, TransitionGraph};
 pub use machine::{CompleteInput, CompleteOutcome, StateMachine, TransitionInFlight};
 pub use state::{State, ALL_STATES};
 pub use transition::Transition;

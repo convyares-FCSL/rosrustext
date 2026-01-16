@@ -18,7 +18,6 @@ adapter and application-facing APIs.
 * Lifecycle services: `change_state`, `get_state`, `get_available_states`,
   `get_available_transitions`
 * `transition_event` publisher (one per accepted attempt, after completion)
-* Optional `get_transition_graph` service (feature `transition_graph`)
 * Optional `/bond` heartbeats for Nav2 compatibility (feature `bond`)
 * ManagedPublisher/ManagedTimer gating while inactive (local suppression)
 
@@ -82,16 +81,17 @@ crates available via a ROS workspace environment (Cargo patching is typical).
 ```bash
 cargo build \
   --manifest-path crates/rosrustext_rosrs/Cargo.toml \
-  --features ros2,bond,transition_graph
+  --features ros2,bond
 ```
+
+Docs build on docs.rs without ROS (feature `docsrs` + `rclrs/use_ros_shim`).
+Runtime builds/tests require ROS 2 Jazzy with the environment sourced.
 
 ## Feature matrix
 
 * `ros2`: enables ROS-facing tooling parity (parameter services/events and lifecycle services)
   and relies on `rclrs::vendor::rcl_interfaces`.
 * `bond`: publishes `/bond` heartbeats for Nav2 lifecycle manager compatibility (requires `ros2`).
-* `transition_graph`: enables non-standard `GetTransitionGraph` introspection (requires `ros2` and
-  a ROS package providing `rosrustext_interfaces`; not required for Nav2).
 * `lifecycle_msgs`: exposes lifecycle message/service surfaces; no hidden deps.
 * `docsrs`: docs.rs-only shim for ROS-free builds; not intended for users.
 

@@ -12,7 +12,6 @@ pub const SERVICE_CHANGE_STATE: &str = "change_state";
 pub const SERVICE_GET_STATE: &str = "get_state";
 pub const SERVICE_GET_AVAILABLE_STATES: &str = "get_available_states";
 pub const SERVICE_GET_AVAILABLE_TRANSITIONS: &str = "get_available_transitions";
-pub const SERVICE_GET_TRANSITION_GRAPH: &str = "get_transition_graph";
 pub const TOPIC_TRANSITION_EVENT: &str = "transition_event";
 pub const TOPIC_BOND: &str = "/bond";
 

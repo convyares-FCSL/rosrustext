@@ -7,7 +7,7 @@
 //! - Parity tables: `docs/parity/*`
 //!
 //! ## Feature matrix
-//! See README for `ros2`, `bond`, `transition_graph`, and docs-only `docsrs`.
+//! See README for `ros2`, `bond`, and docs-only `docsrs`.
 //!
 //! (Keep this page short; it’s a signpost, not a novel.)
 
@@ -31,8 +31,4 @@ pub mod lifecycle_msgs {
 #[cfg(feature = "bond")]
 pub mod bond {
     pub use rosrustext_msgs::bond::*;
-}
-#[cfg(feature = "transition_graph")]
-pub mod rosrustext_interfaces {
-    pub use rosrustext_msgs::rosrustext_interfaces::*;
 }

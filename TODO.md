@@ -55,7 +55,6 @@ Lifecycle is the **first completed feature**, not the final goal.
 - [x] `get_state`
 - [x] `get_available_transitions`
 - [x] `get_available_states`
-- [x] `get_transition_graph` (custom interface)
 - [x] `transition_event` publisher
 - [x] `/bond` heartbeat (Nav2 compatible)
 
@@ -89,7 +88,6 @@ Lifecycle is the **first completed feature**, not the final goal.
 - [x] `get_state`
 - [x] `get_available_transitions`
 - [x] `get_available_states`
-- [x] `get_transition_graph` (feature-gated)
 - [x] `transition_event` publisher
 - [x] `/bond` heartbeat (feature `bond`, Nav2 QoS)
 
@@ -121,7 +119,6 @@ Lifecycle is the **first completed feature**, not the final goal.
 - [x] CLI smoke tests (dev_ws-backed)
 - [x] Bond smoke tests
 - [x] Nav2 lifecycle manager tests
-- [x] Transition graph tests
 - [x] ChangeState timing test
 - [x] System test suite under `scripts/test/ros2_rust`
 
@@ -132,7 +129,6 @@ Lifecycle is the **first completed feature**, not the final goal.
 - [x] Lifecycle parity matrix (services / topics / semantics)
 - [x] Document intentional deviations
 - [x] Document Nav2 bond QoS requirements
-- [x] Shared `rosrustext_interfaces` package
 - [x] Consistent behavior across adapters
 
 ---
