@@ -1,6 +1,6 @@
 [package]
 name = "rosrustext_rosrs"
-version = "0.2.3"
+version = "0.2.4"
 edition = "2021"
 license = "Apache-2.0"
 authors = ["Carl von Ayres <cvonayres@fuelcellsystems.co.uk>"]
@@ -25,10 +25,15 @@ tracing = "0.1"
 
 [features]
 default = []
+# ros2 enables ROS-facing tooling parity that relies on rclrs vendor interfaces.
 ros2 = []
+# Gates lifecycle message/service surfaces; no hidden deps.
 lifecycle_msgs = []
+# Nav2 bond support (requires ros2).
 bond = ["ros2"]
+# Nav2 tooling parity (requires ros2).
 transition_graph = ["ros2"]
+# docs.rs-only shim to build without a ROS installation (not for users).
 docsrs = ["rclrs/use_ros_shim", "rosrustext_msgs/docsrs"]
 
 [dev-dependencies]
@@ -37,4 +42,5 @@ docsrs = ["rclrs/use_ros_shim", "rosrustext_msgs/docsrs"]
 [package.metadata.docs.rs]
 no-default-features = true
 features = ["docsrs"]
-rustdoc-args = ["--cfg", "docsrs", "--cfg", "ros_distro=\"jazzy\""]
+rustdoc-args = ["--cfg", "docsrs"]
+rustc-args = ["--cfg", "ros_distro=\"jazzy\""]
