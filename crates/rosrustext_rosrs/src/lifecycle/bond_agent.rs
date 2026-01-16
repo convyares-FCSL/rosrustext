@@ -31,8 +31,8 @@ fn nav2_bond_qos() -> QoSProfile {
 /// Constructors return [`crate::Error`] if the publisher or timer cannot be created.
 ///
 /// # Example
-/// ```rust,ignore
-/// // Normally you enable this via LifecycleNode with the `bond` feature.
+/// ```text
+/// Normally you enable this via LifecycleNode with the `bond` feature.
 /// ```
 ///
 /// # See also

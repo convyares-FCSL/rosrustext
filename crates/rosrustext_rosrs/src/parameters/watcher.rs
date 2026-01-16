@@ -54,7 +54,7 @@ type Handler = Arc<dyn Fn(&ParameterChange) + Send + Sync + 'static>;
 ///   for the affected parameter name.
 ///
 /// Cache seeding:
-/// - On construction, the cache is seeded from the current [`ParameterNode`]
+/// - On construction, the cache is seeded from the current [`crate::parameters::ParameterNode`]
 ///   store state (declared parameters and any existing values).
 ///
 /// Note:
@@ -84,7 +84,7 @@ type Handler = Arc<dyn Fn(&ParameterChange) + Send + Sync + 'static>;
 /// ```
 ///
 /// # See also
-/// - [`ParameterNode`]
+/// - [`crate::parameters::ParameterNode`]
 /// - [Parameters spec](https://github.com/convyares-FCSL/rosrustext/blob/main/docs/spec/parameters.md)
 /// - [rosrs parameters parity](https://github.com/convyares-FCSL/rosrustext/blob/main/docs/adapters/ros2rust/parameters/parity.md)
 pub struct ParameterWatcher {
@@ -185,7 +185,7 @@ impl ParameterWatcher {
     /// ```
     ///
     /// # See also
-    /// - [`ParameterNode::store`]
+    /// - [`crate::parameters::ParameterNode::store`]
     pub fn snapshot(&self) -> HashMap<String, Value> {
         self.cache.lock().expect("parameter cache mutex poisoned").clone()
     }
