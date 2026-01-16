@@ -1,6 +1,6 @@
 [package]
 name = "rosrustext_rosrs"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 license = "Apache-2.0"
 authors = ["Carl von Ayres <cvonayres@fuelcellsystems.co.uk>"]
@@ -12,12 +12,12 @@ readme = "README.md"
 
 [dependencies]
 # Core semantics (transport-agnostic)
-rosrustext_core = { path = "../rosrustext_core", version = "0.3.0" }
+rosrustext_core = { path = "../rosrustext_core", version = "0.3.1" }
 
 # ROS2 Rust client library (Jazzy dev_ws proven path/patch setup)
 rclrs = "0.6"
 # Messages bundled in workspace crate for publishing
-rosrustext_msgs = { path = "../rosrustext_msgs", version = "0.1.1" }
+rosrustext_msgs = { path = "../rosrustext_msgs", version = "0.1.2" }
 
 # Errors + logging (match style you already use elsewhere)
 thiserror = "2.0"

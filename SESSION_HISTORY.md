@@ -356,3 +356,16 @@ Note (clarification):
 - For `rosrustext_rosrs`, `get_state` reports the stable state only; intermediate
   transition states are not surfaced. When delay>0 is enabled, `change_state`
   returns acceptance and `transition_event` indicates completion.
+
+---
+
+## Session 22 – 2026-01-16 – Patch release prep (core/msgs/rosrs)
+- Bumped patch versions for `rosrustext_core` (0.3.1), `rosrustext_msgs` (0.1.2),
+  and `rosrustext_rosrs` (0.2.1); aligned internal dependency versions.
+- Documented parameters parity dependency on `rclrs::vendor::rcl_interfaces`.
+- Noted crates.io `rcl_interfaces` crates are yanked/incompatible, so vendored
+  `rclrs` types are used and `rclrs` is pinned accordingly.
+- Verified clippy clean + docs.rs rustdoc build for the workspace.
+
+Outcome:
+Release hygiene is clean and version alignment is ready for publish.

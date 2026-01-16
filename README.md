@@ -140,6 +140,8 @@ Adapters map the core semantics onto specific Rust ROS stacks.
 
 * Uses native RCL bindings (`rclrs`)
 * Lifecycle services + `transition_event`
+* Parameters parity uses `rclrs::vendor::rcl_interfaces` for `ParameterEvent` and
+  parameter services; we pin `rclrs` accordingly (currently 0.6.x / `rosidl_runtime_rs` 0.5.x)
 * Bond heartbeat behind feature `bond` (Nav2 QoS)
 * Transition graph behind feature `transition_graph` (custom interface)
 * **Not publishable** (ROS msg crates come from a colcon workspace)

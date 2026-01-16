@@ -13,6 +13,20 @@ Lifecycle is the **first completed feature**, not the final goal.
 
 ---
 
+## 0. Release hygiene / docs parity note
+
+- [x] Release hygiene (clippy clean, docs build)
+- [x] Compatibility note for `rclrs::vendor::rcl_interfaces`
+- [x] Patch version alignment (core/msgs/rosrs)
+
+### Next blockers
+- [ ] Tutorial workspace compilation mismatches
+- [ ] `State` import inconsistencies in examples/docs
+- [ ] QoS helper signature alignment across adapters
+- [ ] Error mapping boundary (core ↔ adapters)
+
+---
+
 ## 1. Lifecycle – Core (`rosrustext_core`)
 
 ### State machine

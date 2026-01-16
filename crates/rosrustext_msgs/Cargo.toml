@@ -1,6 +1,6 @@
 [package]
 name = "rosrustext_msgs"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description = "Bundled ROS 2 messages for rosrustext"
 license = "Apache-2.0"
