@@ -42,7 +42,7 @@ use super::types::{DescribedParameter, Descriptor, EventRecord, ListResult, Para
 /// ```
 ///
 /// # See also
-/// - [Parameters spec](https://github.com/convyares-FCSL/rosrustext_fcsl/blob/main/docs/spec/parameters.md)
+/// - [Parameters spec](https://github.com/convyares-FCSL/rosrustext/blob/main/docs/spec/parameters.md)
 /// - [`Value`]
 /// - [`Type`]
 /// - [`Descriptor`]
@@ -383,7 +383,7 @@ impl ParameterStore {
     /// ```
     ///
     /// # See also
-    /// - [Parameters spec: SetParametersAtomically](https://github.com/convyares-FCSL/rosrustext_fcsl/blob/main/docs/spec/parameters.md#setparametersatomically-atomic)
+    /// - [Parameters spec: SetParametersAtomically](https://github.com/convyares-FCSL/rosrustext/blob/main/docs/spec/parameters.md#setparametersatomically-atomic)
     pub fn set_parameters_atomically(&mut self, params: Vec<(String, Value)>) -> (SetResult, EventRecord) {
         let mut prepared = Vec::with_capacity(params.len());
         for (name, value) in params {

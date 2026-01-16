@@ -36,7 +36,7 @@ fn nav2_bond_qos() -> QoSProfile {
 /// ```
 ///
 /// # See also
-/// - [Lifecycle parity notes](https://github.com/convyares-FCSL/rosrustext_fcsl/blob/main/parity.md)
+/// - [Lifecycle parity notes](https://github.com/convyares-FCSL/rosrustext/blob/main/parity.md)
 /// - [`crate::lifecycle::LifecycleNode`]
 pub struct BondAgent {
     node_name: String,

@@ -85,8 +85,8 @@ type Handler = Arc<dyn Fn(&ParameterChange) + Send + Sync + 'static>;
 ///
 /// # See also
 /// - [`ParameterNode`]
-/// - [Parameters spec](https://github.com/convyares-FCSL/rosrustext_fcsl/blob/main/docs/spec/parameters.md)
-/// - [rosrs parameters parity](https://github.com/convyares-FCSL/rosrustext_fcsl/blob/main/docs/adapters/ros2rust/parameters/parity.md)
+/// - [Parameters spec](https://github.com/convyares-FCSL/rosrustext/blob/main/docs/spec/parameters.md)
+/// - [rosrs parameters parity](https://github.com/convyares-FCSL/rosrustext/blob/main/docs/adapters/ros2rust/parameters/parity.md)
 pub struct ParameterWatcher {
     _subscription: Arc<rclrs::Subscription<rclrs::vendor::rcl_interfaces::msg::ParameterEvent>>,
     handlers: Arc<Mutex<HashMap<String, Vec<Handler>>>>,

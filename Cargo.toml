@@ -1,10 +1,10 @@
 [workspace.package]
-version = "0.3.1"
+version = "0.3.2"
 edition = "2021"
 license = "Apache-2.0"
 authors = ["Carl von Ayres <cvonayres@fuelcellsystems.co.uk>"]
-repository = "https://github.com/convyares-FCSL/rosrustext_fcsl"
-homepage = "https://github.com/convyares-FCSL/rosrustext_fcsl"
+repository = "https://github.com/convyares-FCSL/rosrustext"
+homepage = "https://github.com/convyares-FCSL/rosrustext"
 description = "Explicit, testable ROS 2 lifecycle extensions for Rust"
 rust-version = "1.75"
 

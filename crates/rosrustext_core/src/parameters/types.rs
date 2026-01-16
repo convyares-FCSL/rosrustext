@@ -24,7 +24,7 @@
 /// # See also
 /// - [`Type`]
 /// - [`crate::parameters::ParameterStore`]
-/// - [Parameters spec](https://github.com/convyares-FCSL/rosrustext_fcsl/blob/main/docs/spec/parameters.md)
+/// - [Parameters spec](https://github.com/convyares-FCSL/rosrustext/blob/main/docs/spec/parameters.md)
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     NotSet,
@@ -77,7 +77,7 @@ impl Value {
 ///
 /// # See also
 /// - [`Value`]
-/// - [Parameters spec](https://github.com/convyares-FCSL/rosrustext_fcsl/blob/main/docs/spec/parameters.md)
+/// - [Parameters spec](https://github.com/convyares-FCSL/rosrustext/blob/main/docs/spec/parameters.md)
 pub enum Type {
     NotSet,
     Bool,
@@ -115,7 +115,7 @@ pub enum Type {
 ///
 /// # See also
 /// - [`crate::parameters::ParameterStore`]
-/// - [Parameters spec](https://github.com/convyares-FCSL/rosrustext_fcsl/blob/main/docs/spec/parameters.md)
+/// - [Parameters spec](https://github.com/convyares-FCSL/rosrustext/blob/main/docs/spec/parameters.md)
 #[derive(Default)]
 pub struct Descriptor {
     pub description: String,
@@ -168,7 +168,7 @@ pub struct Parameter {
 /// ```
 ///
 /// # See also
-/// - [Parameters spec: SetParameters](https://github.com/convyares-FCSL/rosrustext_fcsl/blob/main/docs/spec/parameters.md#setparameters-non-atomic)
+/// - [Parameters spec: SetParameters](https://github.com/convyares-FCSL/rosrustext/blob/main/docs/spec/parameters.md#setparameters-non-atomic)
 pub struct SetResult {
     pub success: bool,
     pub reason: Option<String>,
@@ -202,7 +202,7 @@ impl SetResult {
 /// ```
 ///
 /// # See also
-/// - [Parameters spec: Parameter events](https://github.com/convyares-FCSL/rosrustext_fcsl/blob/main/docs/spec/parameters.md#parameter-events)
+/// - [Parameters spec: Parameter events](https://github.com/convyares-FCSL/rosrustext/blob/main/docs/spec/parameters.md#parameter-events)
 pub struct EventRecord {
     pub new_parameters: Vec<Parameter>,
     pub changed_parameters: Vec<Parameter>,
@@ -239,7 +239,7 @@ impl EventRecord {
 /// ```
 ///
 /// # See also
-/// - [Parameters spec: ListParameters](https://github.com/convyares-FCSL/rosrustext_fcsl/blob/main/docs/spec/parameters.md#listparameters)
+/// - [Parameters spec: ListParameters](https://github.com/convyares-FCSL/rosrustext/blob/main/docs/spec/parameters.md#listparameters)
 pub struct ListResult {
     pub names: Vec<String>,
     pub prefixes: Vec<String>,

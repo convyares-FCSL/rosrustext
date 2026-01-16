@@ -76,8 +76,8 @@
 //!   for testing and can change transition timing/results when set.
 //!
 //! # Links
-//! - [Lifecycle spec](https://github.com/convyares-FCSL/rosrustext_fcsl/blob/main/docs/spec/lifecycle.md)
-//! - [Lifecycle parity notes](https://github.com/convyares-FCSL/rosrustext_fcsl/blob/main/parity.md)
+//! - [Lifecycle spec](https://github.com/convyares-FCSL/rosrustext/blob/main/docs/spec/lifecycle.md)
+//! - [Lifecycle parity notes](https://github.com/convyares-FCSL/rosrustext/blob/main/parity.md)
 
 /// Transport-agnostic activation gate used to implement managed-resource gating.
 pub use rosrustext_core::lifecycle::ActivationGate;

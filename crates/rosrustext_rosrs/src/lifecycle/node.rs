@@ -82,7 +82,7 @@ use super::{utils, ManagedPublisher, ManagedTimer};
 /// ```
 ///
 /// # See also
-/// - [Lifecycle spec](https://github.com/convyares-FCSL/rosrustext_fcsl/blob/main/docs/spec/lifecycle.md)
+/// - [Lifecycle spec](https://github.com/convyares-FCSL/rosrustext/blob/main/docs/spec/lifecycle.md)
 /// - [`LifecycleNode`]
 pub trait LifecycleCallbacksWithNode {
     fn on_configure(&mut self, node: &LifecycleNode, state: &State) -> CallbackResult;
@@ -155,8 +155,8 @@ fn run_transition_callback(
 /// ```
 ///
 /// # See also
-/// - [Lifecycle spec](https://github.com/convyares-FCSL/rosrustext_fcsl/blob/main/docs/spec/lifecycle.md)
-/// - [Lifecycle parity notes](https://github.com/convyares-FCSL/rosrustext_fcsl/blob/main/parity.md)
+/// - [Lifecycle spec](https://github.com/convyares-FCSL/rosrustext/blob/main/docs/spec/lifecycle.md)
+/// - [Lifecycle parity notes](https://github.com/convyares-FCSL/rosrustext/blob/main/parity.md)
 /// - [`ManagedPublisher`]
 /// - [`ManagedTimer`]
 #[derive(Clone)]

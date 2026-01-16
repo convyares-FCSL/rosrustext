@@ -1,6 +1,6 @@
 # rosrustext_msgs
 
-Bundled ROS 2 messages for [rosrustext](https://github.com/convyares-FCSL/rosrustext_fcsl).
+Bundled ROS 2 messages for [rosrustext](https://github.com/convyares-FCSL/rosrustext).
 
 This crate contains generated Rust code for:
 - `lifecycle_msgs`

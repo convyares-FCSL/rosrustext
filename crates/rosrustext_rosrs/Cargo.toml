@@ -1,23 +1,23 @@
 [package]
 name = "rosrustext_rosrs"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 license = "Apache-2.0"
 authors = ["Carl von Ayres <cvonayres@fuelcellsystems.co.uk>"]
-repository = "https://github.com/convyares-FCSL/rosrustext_fcsl"
-homepage = "https://github.com/convyares-FCSL/rosrustext_fcsl"
+repository = "https://github.com/convyares-FCSL/rosrustext"
+homepage = "https://github.com/convyares-FCSL/rosrustext"
 description = "rclrs adapter for rosrustext ROS 2 lifecycle + parameters parity"
 rust-version = "1.75"
 readme = "README.md"
 
 [dependencies]
 # Core semantics (transport-agnostic)
-rosrustext_core = { path = "../rosrustext_core", version = "0.3.1" }
+rosrustext_core = { path = "../rosrustext_core", version = "0.3.2" }
 
 # ROS2 Rust client library (Jazzy dev_ws proven path/patch setup)
 rclrs = "0.6"
 # Messages bundled in workspace crate for publishing
-rosrustext_msgs = { path = "../rosrustext_msgs", version = "0.1.2" }
+rosrustext_msgs = { path = "../rosrustext_msgs", version = "0.1.3" }
 
 # Errors + logging (match style you already use elsewhere)
 thiserror = "2.0"
@@ -29,11 +29,12 @@ ros2 = []
 lifecycle_msgs = []
 bond = ["ros2"]
 transition_graph = ["ros2"]
+docsrs = ["rclrs/use_ros_shim", "rosrustext_msgs/docsrs"]
 
 [dev-dependencies]
 # keep empty for now; slice-1 validation lives in rosrustext_dev_ws
 
 [package.metadata.docs.rs]
-rustdoc-args = ["--cfg", "docsrs"]
 no-default-features = true
-features = []
+features = ["docsrs"]
+rustdoc-args = ["--cfg", "docsrs", "--cfg", "ros_distro=\"jazzy\""]

@@ -36,7 +36,7 @@ use super::{State, Transition};
 /// # See also
 /// - [`finish`]
 /// - [`finish_with_error_handling`]
-/// - [Lifecycle spec](https://github.com/convyares-FCSL/rosrustext_fcsl/blob/main/docs/spec/lifecycle.md)
+/// - [Lifecycle spec](https://github.com/convyares-FCSL/rosrustext/blob/main/docs/spec/lifecycle.md)
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum CallbackResult {
     Success,

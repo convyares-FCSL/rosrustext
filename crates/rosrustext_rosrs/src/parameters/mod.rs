@@ -44,8 +44,8 @@
 //! - No convenience typed getters are provided (consume [`Value`] directly).
 //!
 //! # Links
-//! - [Parameters spec](https://github.com/convyares-FCSL/rosrustext_fcsl/blob/main/docs/spec/parameters.md)
-//! - [rosrs parameters parity](https://github.com/convyares-FCSL/rosrustext_fcsl/blob/main/docs/adapters/ros2rust/parameters/parity.md)
+//! - [Parameters spec](https://github.com/convyares-FCSL/rosrustext/blob/main/docs/spec/parameters.md)
+//! - [rosrs parameters parity](https://github.com/convyares-FCSL/rosrustext/blob/main/docs/adapters/ros2rust/parameters/parity.md)
 
 use std::sync::{Arc, Mutex};
 
@@ -102,7 +102,7 @@ pub use watcher::{ParameterChange, ParameterWatcher};
 ///
 /// # See also
 /// - [`ParameterWatcher`]
-/// - [Parameters spec](https://github.com/convyares-FCSL/rosrustext_fcsl/blob/main/docs/spec/parameters.md)
+/// - [Parameters spec](https://github.com/convyares-FCSL/rosrustext/blob/main/docs/spec/parameters.md)
 pub struct ParameterNode {
     node: Arc<Node>,
     store: Arc<Mutex<ParameterStore>>,
@@ -196,7 +196,7 @@ impl ParameterNode {
     /// ```
     ///
     /// # See also
-    /// - [Parameters spec: declared vs undeclared](https://github.com/convyares-FCSL/rosrustext_fcsl/blob/main/docs/spec/parameters.md#declared-vs-undeclared)
+    /// - [Parameters spec: declared vs undeclared](https://github.com/convyares-FCSL/rosrustext/blob/main/docs/spec/parameters.md#declared-vs-undeclared)
     pub fn try_new_with_allow_undeclared(node: Arc<Node>, allow_undeclared: bool) -> Result<Self> {
         let store = Arc::new(Mutex::new(ParameterStore::new(allow_undeclared)));
         let events = Arc::new(events::ParameterEventsPublisher::new(&node)?);

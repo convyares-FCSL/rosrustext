@@ -57,7 +57,7 @@ pub enum PublishOutcome {
 ///
 /// # See also
 /// - [`crate::lifecycle::LifecycleNode::create_publisher`]
-/// - [Lifecycle spec](https://github.com/convyares-FCSL/rosrustext_fcsl/blob/main/docs/spec/lifecycle.md)
+/// - [Lifecycle spec](https://github.com/convyares-FCSL/rosrustext/blob/main/docs/spec/lifecycle.md)
 pub struct ManagedPublisher<T>
 where
     T: rclrs::MessageIDL,
