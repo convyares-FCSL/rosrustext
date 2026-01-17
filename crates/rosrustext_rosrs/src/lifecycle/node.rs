@@ -15,14 +15,14 @@ use rosrustext_msgs::lifecycle_msgs::msg::{TransitionDescription, TransitionEven
 use rosrustext_msgs::lifecycle_msgs::srv::{ChangeState, GetAvailableStates, GetAvailableTransitions, GetState};
 
 use rclrs::{
-    Client, ClientOptions, Executor, IntoNodeOptions, IntoNodeServiceCallback, IntoNodeSubscriptionCallback, Node,
-    Service, ServiceOptions, Subscription, SubscriptionOptions, TimerOptions,
+    Client, ClientOptions, Executor, IntoNodeOptions, IntoNodeServiceCallback, Node, Service, ServiceOptions,
+    TimerOptions,
 };
 use rosrustext_core::lifecycle::{ActivationGate, CallbackResult, CompleteInput, State, StateMachine, Transition};
 
 #[cfg(feature = "bond")]
 use super::BondAgent;
-use super::{utils, ManagedPublisher, ManagedTimer};
+use super::{utils, ManagedPublisherBuilder, ManagedSubscriptionBuilder, ManagedTimerBuilder, NoCallback};
 
 /// Lifecycle transition callbacks that receive a [`LifecycleNode`] handle.
 ///
@@ -112,7 +112,7 @@ fn run_transition_callback(
 ///   `/<node>/transition_event`.
 /// - Maintains an internal [`ActivationGate`] that becomes active when the stable
 ///   state is `Active`.
-/// - Provides managed resources ([`ManagedPublisher`], [`ManagedTimer`]) that are
+/// - Provides managed resources ([`crate::lifecycle::ManagedPublisher`], [`crate::lifecycle::ManagedTimer`]) that are
 ///   suppressed while inactive.
 ///
 /// This intentionally does **not** implement `Deref<Target = Node>` so lifecycle-aware
@@ -145,7 +145,7 @@ fn run_transition_callback(
 /// let mut executor = context.create_basic_executor();
 ///
 /// let lifecycle = LifecycleNode::create_with_callbacks(&executor, "demo", Box::new(Callbacks))?;
-/// let _pub_ = lifecycle.create_publisher::<rosrustext_rosrs::lifecycle_msgs::msg::State>("state")?;
+/// let _pub_ = lifecycle.publisher::<rosrustext_rosrs::lifecycle_msgs::msg::State>("state").create()?;
 ///
 /// executor.spin(SpinOptions::default());
 /// # Ok(()) }
@@ -154,8 +154,8 @@ fn run_transition_callback(
 /// # See also
 /// - [Lifecycle spec](https://github.com/convyares-FCSL/rosrustext/blob/main/docs/spec/lifecycle.md)
 /// - [Lifecycle parity notes](https://github.com/convyares-FCSL/rosrustext/blob/main/parity.md)
-/// - [`ManagedPublisher`]
-/// - [`ManagedTimer`]
+/// - [`crate::lifecycle::ManagedPublisher`]
+/// - [`crate::lifecycle::ManagedTimer`]
 #[derive(Clone)]
 pub struct LifecycleNode {
     node: Arc<Node>,
@@ -448,8 +448,8 @@ impl LifecycleNode {
     /// Returns a shared handle to the underlying `rclrs::Node`.
     ///
     /// Using the returned node to create publishers/timers will **bypass**
-    /// lifecycle gating. Prefer [`LifecycleNode::create_publisher`] and
-    /// [`LifecycleNode::create_timer_repeating_gated`] when you want managed behavior.
+    /// lifecycle gating. Prefer [`LifecycleNode::publisher`] and
+    /// [`LifecycleNode::timer_repeating`] when you want managed behavior.
     ///
     /// # Errors
     /// This method does not fail.
@@ -540,7 +540,7 @@ impl LifecycleNode {
     /// ```
     ///
     /// # See also
-    /// - [`LifecycleNode::create_subscription`]
+    /// - [`LifecycleNode::subscription`]
     pub fn create_service<'a, T, Args>(
         &self, options: impl Into<ServiceOptions<'a>>, callback: impl IntoNodeServiceCallback<T, Args>,
     ) -> Result<Service<T>>
@@ -550,29 +550,26 @@ impl LifecycleNode {
         Ok(self.node.create_service::<T, Args>(options, callback)?)
     }
 
-    /// Create a non-lifecycle subscription on the underlying node.
+    /// Create a non-lifecycle subscription builder on the underlying node.
     ///
     /// # Semantics
     /// Subscriptions are not lifecycle-gated. Use this for data-plane subscriptions
     /// that should continue to receive messages in all lifecycle states.
     ///
-    /// # Errors
-    /// Returns an error if `rclrs` fails to create the subscription.
-    ///
     /// # Example
     /// ```rust,ignore
-    /// let _sub = lifecycle.create_subscription::<std_msgs::msg::String, _>("chatter", |_msg| {})?;
+    /// let _sub = lifecycle.subscription::<std_msgs::msg::String>("chatter").callback(|_msg| {}).create()?;
     /// ```
     ///
     /// # See also
     /// - [`LifecycleNode::create_service`]
-    pub fn create_subscription<'a, T, Args>(
-        &self, options: impl Into<SubscriptionOptions<'a>>, callback: impl IntoNodeSubscriptionCallback<T, Args>,
-    ) -> Result<Subscription<T>>
+    pub fn subscription<'a, T>(
+        &self, topic: impl Into<std::borrow::Cow<'a, str>>,
+    ) -> ManagedSubscriptionBuilder<T, NoCallback>
     where
         T: rclrs::MessageIDL,
     {
-        Ok(self.node.create_subscription::<T, Args>(options, callback)?)
+        ManagedSubscriptionBuilder::new(Arc::clone(&self.node), topic)
     }
 
     /// Create a client on the underlying node.
@@ -659,68 +656,54 @@ impl LifecycleNode {
         self.gate.is_active()
     }
 
-    /// Create a publisher managed by the lifecycle node's activation gate.
+    /// Create a managed publisher builder.
     ///
     /// # Semantics
-    /// Returns a [`ManagedPublisher`] that suppresses publishes while inactive.
-    ///
-    /// # Errors
-    /// Returns an error if `rclrs` fails to create the underlying publisher.
+    /// Returns a builder that creates a [`crate::lifecycle::ManagedPublisher`]
+    /// which suppresses publishes while inactive.
     ///
     /// # Example
     /// ```rust,ignore
-    /// let pub_ = lifecycle.create_publisher::<std_msgs::msg::String>("chatter")?;
+    /// let pub_ = lifecycle.publisher::<std_msgs::msg::String>("chatter").create()?;
     /// ```
     ///
     /// # See also
-    /// - [`ManagedPublisher`]
-    /// - [`ManagedPublisher::publish_with_outcome`]
-    pub fn create_publisher<T>(&self, topic: &str) -> Result<ManagedPublisher<T>>
+    /// - [`crate::lifecycle::ManagedPublisher`]
+    /// - [`crate::lifecycle::ManagedPublisher::publish_with_outcome`]
+    pub fn publisher<'a, T>(&self, topic: impl Into<std::borrow::Cow<'a, str>>) -> ManagedPublisherBuilder<T>
     where
         T: rclrs::MessageIDL,
     {
-        let pub_ = self.node.create_publisher::<T>(topic)?;
-        Ok(ManagedPublisher::new(pub_, Arc::clone(&self.gate)))
+        ManagedPublisherBuilder::new(Arc::clone(&self.node), Arc::clone(&self.gate), topic)
     }
 
-    /// Create a repeating timer managed by the lifecycle node's activation gate.
+    /// Create a managed repeating timer builder.
     ///
     /// # Semantics
-    /// - Creates a repeating `rclrs::Timer` that fires at `period`.
-    /// - On each tick, the callback runs **only if** the node is active.
-    /// - While inactive, ticks are silently skipped (the timer still fires).
+    /// Returns a builder that creates a repeating `rclrs::Timer` whose callback
+    /// runs **only if** the node is active. While inactive, ticks are silently
+    /// skipped (the timer still fires).
     ///
     /// Timer replacement guidance:
-    /// - Keep the returned [`ManagedTimer`] alive to keep the timer installed.
+    /// - Keep the returned [`crate::lifecycle::ManagedTimer`] alive to keep the timer installed.
     /// - To change the period or callback, drop the existing handle and create
-    ///   a new gated timer (e.g. store it in an `Option<ManagedTimer>` and replace).
-    ///
-    /// # Errors
-    /// Returns an error if `rclrs` fails to create the timer.
+    ///   a new timer (e.g. store it in an `Option<crate::lifecycle::ManagedTimer>` and replace).
     ///
     /// # Example
     /// ```rust,ignore
     /// use std::time::Duration;
-    /// let _timer = lifecycle.create_timer_repeating_gated(Duration::from_millis(100), move || {
-    ///     // Runs only while Active
-    /// })?;
+    /// let _timer = lifecycle
+    ///     .timer_repeating(Duration::from_millis(100))
+    ///     .callback(move || {
+    ///         // Runs only while Active
+    ///     })
+    ///     .create()?;
     /// ```
     ///
     /// # See also
-    /// - [`ManagedTimer`]
-    pub fn create_timer_repeating_gated<F>(&self, period: Duration, mut callback: F) -> Result<ManagedTimer>
-    where
-        F: FnMut() + Send + 'static,
-    {
-        let gate = Arc::clone(&self.gate);
-
-        let timer = self.node.create_timer_repeating(TimerOptions::new(period), move || {
-            if gate.is_active() {
-                callback();
-            }
-        })?;
-
-        Ok(ManagedTimer::new(timer))
+    /// - [`crate::lifecycle::ManagedTimer`]
+    pub fn timer_repeating(&self, period: Duration) -> ManagedTimerBuilder<NoCallback> {
+        ManagedTimerBuilder::new(Arc::clone(&self.node), Arc::clone(&self.gate), period)
     }
 
     /// Internal helper: Apply completion outcome to state machine and trigger side effects.

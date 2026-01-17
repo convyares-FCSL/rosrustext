@@ -51,12 +51,12 @@ pub enum PublishOutcome {
 ///
 /// # Example
 /// ```rust,ignore
-/// let publisher = lifecycle.create_publisher::<rosrustext_rosrs::lifecycle_msgs::msg::State>("state")?;
+/// let publisher = lifecycle.publisher::<rosrustext_rosrs::lifecycle_msgs::msg::State>("state").create()?;
 /// publisher.publish(rosrustext_rosrs::lifecycle_msgs::msg::State::default())?;
 /// ```
 ///
 /// # See also
-/// - [`crate::lifecycle::LifecycleNode::create_publisher`]
+/// - [`crate::lifecycle::LifecycleNode::publisher`]
 /// - [Lifecycle spec](https://github.com/convyares-FCSL/rosrustext/blob/main/docs/spec/lifecycle.md)
 pub struct ManagedPublisher<T>
 where

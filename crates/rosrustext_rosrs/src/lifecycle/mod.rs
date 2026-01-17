@@ -43,12 +43,12 @@
 //! - [`ManagedPublisher`] drops publishes while inactive. Use
 //!   [`ManagedPublisher::publish_with_outcome`] when you need to distinguish
 //!   “published” vs “suppressed”.
-//! - [`LifecycleNode::create_timer_repeating_gated`] installs a repeating timer
+//! - [`LifecycleNode::timer_repeating`] returns a builder for a repeating timer
 //!   that *skips* its callback while inactive. The underlying timer still ticks.
 //!
 //! Not gated:
 //! - services, subscriptions, and clients created via
-//!   [`LifecycleNode::create_service`], [`LifecycleNode::create_subscription`],
+//!   [`LifecycleNode::create_service`], [`LifecycleNode::subscription`],
 //!   [`LifecycleNode::create_client`] are always active.
 //!
 //! # Threading model notes
@@ -87,9 +87,28 @@ pub use rosrustext_core::lifecycle::CallbackResult;
 mod managed_publisher;
 pub use managed_publisher::{ManagedPublisher, PublishOutcome};
 
+// Builder state markers
+mod builder_state;
+pub use builder_state::{ClockChoice, HasCallback, NoCallback};
+
+// Managed publisher builder (options + QoS helpers)
+mod managed_publisher_builder;
+pub use managed_publisher_builder::ManagedPublisherBuilder;
+
+// Managed subscription builder (ungated by default)
+mod managed_subscription_builder;
+pub use managed_subscription_builder::ManagedSubscriptionBuilder;
+
+/// Alias to keep naming consistent for ungated subscriptions.
+pub type ManagedSubscription<T> = rclrs::Subscription<T>;
+
 // Managed timer (gated timer callback)
 mod managed_timer;
 pub use managed_timer::ManagedTimer;
+
+// Managed timer builder (gated repeating timer)
+mod managed_timer_builder;
+pub use managed_timer_builder::ManagedTimerBuilder;
 
 // Bond agent (feature-gated)
 #[cfg(feature = "bond")]

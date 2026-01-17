@@ -140,3 +140,47 @@ fn main() -> rosrustext_rosrs::Result<()> {
     Ok(())
 }
 ```
+
+## Builder APIs (managed vs raw)
+
+Managed (lifecycle-gated):
+
+```rust
+use rclrs::{Context, CreateBasicExecutor};
+use rosrustext_rosrs::lifecycle::LifecycleNode;
+use rosrustext_rosrs::lifecycle_msgs::msg::State;
+
+fn main() -> rosrustext_rosrs::Result<()> {
+    let context = Context::default();
+    let executor = context.create_basic_executor();
+    let lifecycle = LifecycleNode::create(&executor, "demo")?;
+
+    let _pub = lifecycle.publisher::<State>("state").create()?;
+    let _timer = lifecycle
+        .timer_repeating(std::time::Duration::from_millis(100))
+        .callback(|| {})
+        .create()?;
+    Ok(())
+}
+```
+
+Raw (non-managed):
+
+```rust
+use rclrs::{Context, CreateBasicExecutor};
+use rosrustext_rosrs::NodeBuilderExt;
+use rosrustext_rosrs::lifecycle_msgs::msg::State;
+
+fn main() -> rosrustext_rosrs::Result<()> {
+    let context = Context::default();
+    let executor = context.create_basic_executor();
+    let node = executor.create_node("demo")?;
+
+    let _pub = node.publisher::<State>("state").create()?;
+    let _timer = node
+        .timer_repeating(std::time::Duration::from_millis(100))
+        .callback(|| {})
+        .create()?;
+    Ok(())
+}
+```
