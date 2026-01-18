@@ -1,57 +1,108 @@
 # rosrustext_rosrs
 
-rclrs extension layer that targets tool parity (ROS-facing behavior) and user
-parity (developer ergonomics) for ROS 2 features, centered on the ROS-facing
-adapter and application-facing APIs.
+An extension layer for **rclrs** that targets **ROS 2 tool parity**
+(ROS-facing behavior) and **user parity** (developer ergonomics),
+without becoming a new client library.
+
+> Note on naming: this crate name predates the final naming convention.
+> “rosrs” here refers to the native **rclrs-based** transport.
+
+This crate **builds on rclrs**. It does not replace it.
+
+---
+
+## Scope and intent
+
+`rosrustext_rosrs` exists to close the gap between:
+
+* what Rust ROS nodes can *compile and run*, and
+* what ROS 2 tools and managers *expect to observe*.
+
+Parity is judged by **observable ROS behavior**
+(`ros2 lifecycle`, `ros2 param`, Nav2, Python/C++ managers),
+not by API similarity to `rclcpp`.
+
+---
 
 ## Extension areas and status
 
-| Area | Tool parity | User parity |
-| ---- | ---------- | ---------- |
-| Lifecycle | Implemented (services/events/bond/gating) | Partial (gaps documented) |
-| Parameters | Implemented (services/events) | Partial (watcher; no set-time validation hook) |
-| Actions | Not implemented | Not implemented |
-| Executor | Not implemented | Not implemented |
+| Area       | Tool parity | User parity |
+|------------|-------------|-------------|
+| Lifecycle  | Implemented (services, events, bond, gating) | Partial (gaps documented) |
+| Parameters | Implemented (services, events) | Partial (watcher; no set-time validation hook) |
+| Actions    | Not implemented | Not implemented |
+| Executor   | Not implemented | Not implemented |
+
+---
 
 ## Lifecycle parity (implemented)
 
-* Lifecycle services: `change_state`, `get_state`, `get_available_states`,
-  `get_available_transitions`
-* `transition_event` publisher (one per accepted attempt, after completion)
+* Lifecycle services:
+  * `change_state`
+  * `get_state`
+  * `get_available_states`
+  * `get_available_transitions`
+* `transition_event` publisher  
+  (one event per accepted attempt, published after completion)
 * Optional `/bond` heartbeats for Nav2 compatibility (feature `bond`)
-* ManagedPublisher/ManagedTimer gating while inactive (local suppression)
+* Lifecycle-gated publishers and timers:
+  * silent suppression while inactive
+  * no DDS entity enable/disable tricks
 
-See `docs/adapters/ros2rust/lifecycle/parity.md` for tool vs user parity details.
+Detailed tool vs user parity:
+`docs/adapters/ros2rust/lifecycle/parity.md`
+
+---
 
 ## Parameters parity (implemented baseline)
 
-* Parameter services: `get_parameters`, `get_parameter_types`, `list_parameters`,
-  `describe_parameters`, `set_parameters`, `set_parameters_atomically`
+* Parameter services:
+  * `get_parameters`
+  * `get_parameter_types`
+  * `list_parameters`
+  * `describe_parameters`
+  * `set_parameters`
+  * `set_parameters_atomically`
 * `parameter_events` publisher (emitted on successful updates only)
-* `ParameterWatcher` helper for event-driven updates without polling
-* No set-time validation hook (updates are observable after apply)
+* `ParameterWatcher` helper for event-driven updates (no polling)
 
-See `docs/adapters/ros2rust/parameters/parity.md` for tool vs user parity details.
+Known limitation:
+* No user-defined **set-time validation hook**  
+  (blocked by current `rclrs` surface; validation is observable post-apply)
 
-## Compatibility / Parity Notes
+Detailed tool vs user parity:
+`docs/adapters/ros2rust/parameters/parity.md`
 
-* Parameters parity uses `rclrs::vendor::rcl_interfaces` for `ParameterEvent`
-  and parameter services.
-* This couples the adapter to `rclrs` 0.6.x (and `rosidl_runtime_rs` 0.5.x
-  transitively).
-* This is an implementation detail dependency; if `rclrs` changes the vendored
-  surface, we will pin/update accordingly.
+---
+
+## Compatibility / parity notes
+
+* Parameter support uses `rclrs::vendor::rcl_interfaces`
+  for parameter services and `ParameterEvent`.
+* This couples the crate to:
+  * `rclrs` 0.6.x
+  * `rosidl_runtime_rs` 0.5.x (transitively)
+* Versions are pinned deliberately to preserve ROS tool compatibility.
+
+This dependency is an implementation detail and will be updated as upstream evolves.
+
+---
 
 ## Known differences vs rclcpp
 
-* `change_state` returns `success=true` once a transition is accepted; callback
-  outcome is reflected in the final state and `transition_event`.
+* `change_state` returns `success=true` once a transition is **accepted**.
+  Final outcome is reflected via:
+  * `get_state`
+  * `transition_event`
+
+This matches ROS 2 service contracts and is compatible with tooling.
+
+---
 
 ## Publish outcome visibility
 
-Use `publish_with_outcome()` when you need to know whether a message was
-suppressed due to lifecycle inactivity. `publish()` remains silent and returns
-`Ok(())` either way.
+When you need to observe lifecycle gating explicitly, use
+`publish_with_outcome()`.
 
 ```rust
 use rosrustext_rosrs::lifecycle::{PublishOutcome, ManagedPublisher};
@@ -62,21 +113,36 @@ match publisher.publish_with_outcome(msg)? {
         // Message was gated due to inactive lifecycle state.
     }
 }
-```
+````
 
-## Lifecycle user parity gaps (current)
+`publish()` remains silent and returns `Ok(())` either way.
 
-* No set/replace callbacks API; `create`/`try_new` still default to no-op callbacks
+---
 
-## Other extensions (not implemented)
+## Lifecycle user-parity gaps (current)
+
+* Callbacks must be provided at construction time.
+
+  * No set/replace callbacks API yet.
+  * This is tracked and documented in parity docs.
+
+---
+
+## Other extensions (not yet implemented)
 
 * Actions parity
 * Executor extensions
 
-## Build (ROS installed)
+These are planned and tracked under the project-level specs.
 
-This crate is published on crates.io, but building requires ROS 2 and ROS message
-crates available via a ROS workspace environment (Cargo patching is typical).
+---
+
+## Build notes (ROS installed)
+
+This crate is published on crates.io, but **building requires a ROS 2
+workspace** to provide generated message crates.
+
+This is standard for `rclrs`-based projects.
 
 ```bash
 cargo build \
@@ -84,66 +150,67 @@ cargo build \
   --features ros2,bond
 ```
 
-Docs build on docs.rs without ROS (feature `docsrs` + `rclrs/use_ros_shim`).
-Runtime builds/tests require ROS 2 Jazzy with the environment sourced.
+* Docs build on docs.rs without ROS (`docsrs` + `rclrs/use_ros_shim`)
+* Runtime builds/tests require ROS 2 Jazzy with the environment sourced
 
-## Feature matrix
+---
 
-* `ros2`: enables ROS-facing tooling parity (parameter services/events and lifecycle services)
-  and relies on `rclrs::vendor::rcl_interfaces`.
-* `bond`: publishes `/bond` heartbeats for Nav2 lifecycle manager compatibility (requires `ros2`).
-* `lifecycle_msgs`: exposes lifecycle message/service surfaces; no hidden deps.
-* `docsrs`: docs.rs-only shim for ROS-free builds; not intended for users.
+## Feature flags
 
-## Example commands (Jazzy)
+* `ros2`
+  Enables ROS-facing tooling parity (lifecycle + parameters)
+* `bond`
+  Enables `/bond` heartbeats for Nav2 lifecycle manager compatibility
+  (requires `ros2`)
+* `lifecycle_msgs`
+  Exposes lifecycle message/service types explicitly
+* `docsrs`
+  Docs-only shim for ROS-free builds (not intended for users)
 
-```bash
-ros2 lifecycle get /<node>
-# Expect the current stable state (Unconfigured/Inactive/Active/Finalized)
+---
 
-ros2 lifecycle set /<node> configure
-# success=true; a transition_event is published after completion
+## Minimal lifecycle usage
 
-ros2 lifecycle set /<node> activate
-# success=true; /bond heartbeats begin if `bond` is enabled
-```
-
-## Minimal usage
-
-Recommended constructor: `LifecycleNode::create_with_callbacks`.
+Recommended constructor:
+`LifecycleNode::create_with_callbacks`.
 
 ```rust
 use rclrs::{Context, CreateBasicExecutor, SpinOptions};
-use rosrustext_rosrs::lifecycle::{CallbackResult, LifecycleCallbacksWithNode, LifecycleNode};
+use rosrustext_rosrs::lifecycle::{
+    CallbackResult, LifecycleCallbacksWithNode, LifecycleNode
+};
 use rosrustext_rosrs::State;
 
 struct Callbacks;
 
 impl LifecycleCallbacksWithNode for Callbacks {
-    fn on_configure(&mut self, node: &LifecycleNode, _state: &State) -> CallbackResult {
+    fn on_configure(&mut self, node: &LifecycleNode, _: &State) -> CallbackResult {
         let _ = node.name();
         CallbackResult::Success
     }
-    fn on_activate(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult { CallbackResult::Success }
-    fn on_deactivate(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult { CallbackResult::Success }
-    fn on_cleanup(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult { CallbackResult::Success }
-    fn on_shutdown(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult { CallbackResult::Success }
-    fn on_error(&mut self, _node: &LifecycleNode, _state: &State) -> CallbackResult { CallbackResult::Success }
+    fn on_activate(&mut self, _: &LifecycleNode, _: &State) -> CallbackResult { CallbackResult::Success }
+    fn on_deactivate(&mut self, _: &LifecycleNode, _: &State) -> CallbackResult { CallbackResult::Success }
+    fn on_cleanup(&mut self, _: &LifecycleNode, _: &State) -> CallbackResult { CallbackResult::Success }
+    fn on_shutdown(&mut self, _: &LifecycleNode, _: &State) -> CallbackResult { CallbackResult::Success }
+    fn on_error(&mut self, _: &LifecycleNode, _: &State) -> CallbackResult { CallbackResult::Success }
 }
 
 fn main() -> rosrustext_rosrs::Result<()> {
     let context = Context::default();
     let mut executor = context.create_basic_executor();
 
-    let _lifecycle = LifecycleNode::create_with_callbacks(&executor, "lifecycle_demo", Box::new(Callbacks))?;
+    let _lifecycle =
+        LifecycleNode::create_with_callbacks(&executor, "lifecycle_demo", Box::new(Callbacks))?;
     executor.spin(SpinOptions::default());
     Ok(())
 }
 ```
 
-## Builder APIs (managed vs raw)
+---
 
-Managed (lifecycle-gated):
+## Builder APIs
+
+### Managed (lifecycle-gated)
 
 ```rust
 use rclrs::{Context, CreateBasicExecutor};
@@ -164,7 +231,7 @@ fn main() -> rosrustext_rosrs::Result<()> {
 }
 ```
 
-Raw (non-managed):
+### Raw (non-managed)
 
 ```rust
 use rclrs::{Context, CreateBasicExecutor};
@@ -184,3 +251,19 @@ fn main() -> rosrustext_rosrs::Result<()> {
     Ok(())
 }
 ```
+
+---
+
+## Summary
+
+`rosrustext_rosrs` extends **rclrs** to make Rust nodes behave predictably
+under real ROS 2 tooling.
+
+It prioritizes:
+
+* Observable parity
+* Deterministic lifecycle behavior
+* Explicit limitations
+* Compatibility with existing ROS ecosystems
+
+This crate is one part of the broader `rosrustext` project.

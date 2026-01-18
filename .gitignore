@@ -102,3 +102,4 @@ lcov.info
 # =========================
 .idea/
 *.code-workspace
+.agent/

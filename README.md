@@ -10,9 +10,9 @@ The long-term objective is:
 > work with the same tools, follow the same semantics,
 > and can be composed freely in production systems.
 
-Supported libraries (both are very good):
-* RosLibRust : https://github.com/RosLibRust/roslibrust
-* ros2_rust / rclrs : https://github.com/ros2-rust/ros2_rust
+This project builds on existing Rust ROS libraries:
+* RosLibRust — https://github.com/RosLibRust/roslibrust  
+* ros2_rust / rclrs — https://github.com/ros2-rust/ros2_rust  
 
 Lifecycle support is the **first completed feature**, not the end goal.
 
@@ -25,16 +25,16 @@ ROS 2 already has mature client libraries for:
 * C++ (`rclcpp`)
 * Python (`rclpy`)
 
-Rust support exists, but is fragmented across:
+Rust support exists, but is distributed across:
 
 * rosbridge-based solutions
 * native RCL bindings
-* incomplete or uneven feature coverage
+* partial or uneven feature coverage
 
-This creates a gap:
+In practice, this can lead to a gap where:
 
-* Rust nodes often *compile* and *publish messages*,
-  but **fail under real ROS 2 tooling**:
+* Rust nodes compile and publish messages,
+* but fail under **real ROS 2 tooling**, such as:
 
   * lifecycle managers
   * Nav2
@@ -46,6 +46,8 @@ This creates a gap:
 * **Shared semantic truth in Rust**
 * **Multiple transport adapters**
 * **Observable parity with ROS 2 expectations**
+
+Parity is judged by **external behavior under ROS tools**, not by API similarity.
 
 ---
 
@@ -64,27 +66,28 @@ A user should be able to:
   * Python lifecycle managers
   * C++ lifecycle managers (Nav2)
   * Standard launch files
-* And have it behave **indistinguishably** from a C++ or Python node
 
-No custom glue.
-No disabling safety checks.
-No “Rust special cases.”
+And have it behave **indistinguishably** from a C++ or Python node.
+
+No custom glue.  
+No disabling safety checks.  
+No “Rust-only” behavior.
 
 ---
 
 ## Design principles
 
-* **Parity before convenience**
-  Behavior matters more than API ergonomics.
-* **One semantic core**
+* **Parity before convenience**  
+  Observable behavior matters more than API ergonomics.
+* **One semantic core**  
   ROS meaning is defined once, not per transport.
-* **Multiple adapters, same truth**
+* **Multiple adapters, same truth**  
   Different Rust ROS stacks share the same semantics.
-* **Transport isolation**
+* **Transport isolation**  
   rosbridge vs native RCL differences must not leak upward.
-* **Deterministic and explicit**
-  State machines, not callbacks and side effects.
-* **Industrial-grade observability**
+* **Deterministic and explicit**  
+  State machines, not hidden side effects.
+* **Industrial-grade observability**  
   Failures must be visible, diagnosable, and predictable.
 
 ---
@@ -107,7 +110,7 @@ Currently implemented:
 * Activation gating
 * Deterministic transition handling
 
-Future scope:
+Planned scope:
 
 * Actions
 * Parameters
@@ -125,7 +128,7 @@ Adapters map the core semantics onto specific Rust ROS stacks.
 #### `rosrustext_roslibrust`
 
 * Uses `roslibrust` + rosbridge
-* Works today with:
+* Verified with:
 
   * `ros2 lifecycle`
   * Python lifecycle managers
@@ -135,14 +138,13 @@ Adapters map the core semantics onto specific Rust ROS stacks.
   * Lifecycle proxy
   * Bond heartbeat
 
-#### `rosrustext_rosrs` *(complete, ROS workspace only)*
+#### `rosrustext_rosrs` *(ROS workspace only)*
 
 * Uses native RCL bindings (`rclrs`)
 * Lifecycle services + `transition_event`
-* Parameters parity uses `rclrs::vendor::rcl_interfaces` for `ParameterEvent` and
-  parameter services; we pin `rclrs` accordingly (currently 0.6.x / `rosidl_runtime_rs` 0.5.x)
+* Parameter support via `rclrs::vendor::rcl_interfaces`
 * Bond heartbeat behind feature `bond` (Nav2 QoS)
-* **Not publishable** (ROS msg crates come from a colcon workspace)
+* Not published on crates.io due to ROS-generated message crate dependencies
 
 Adapters are **replaceable**, not competing.
 
@@ -150,32 +152,20 @@ Adapters are **replaceable**, not competing.
 
 ## Lifecycle: first completed feature
 
-Lifecycle is the first feature implemented end-to-end because it is:
+Lifecycle was implemented first because it is:
 
 * Semantically rich
 * Tooling-heavy
 * Widely relied upon (Nav2, orchestration)
-* A good stress test for parity claims
+* A strong test of parity claims
 
-Current lifecycle support includes:
+Lifecycle behavior is verified under:
 
-**roslibrust adapter**
-* All standard ROS 2 lifecycle services
-* Transition events
-* Busy-state rejection
-* ErrorProcessing semantics
-* Bond compatibility for Nav2
-* Verified with:
+* ROS CLI
+* Python lifecycle managers
+* C++ / Nav2 lifecycle managers
 
-  * ROS CLI
-  * Python lifecycle manager
-  * Nav2 lifecycle manager (C++)
-
-**rosrs adapter (rclrs, Jazzy)**
-* Lifecycle services + `transition_event` (success/failure/error)
-* Busy rejection + non-blocking ChangeState timing contract
-* Bond heartbeat (feature `bond`, Nav2 QoS)
-* Verified with CLI + Nav2 smoke scripts in a ROS workspace
+Parity is documented via specs and validated by system-level tests.
 
 ---
 
@@ -183,57 +173,15 @@ Current lifecycle support includes:
 
 Testing is layered by intent:
 
-1. **Core unit tests (Rust)**
-   Verify semantic correctness without ROS.
-2. **Adapter integration tests (Rust)**
-   Verify adapter contracts and state reconciliation.
-3. **System tests (CLI-level)**
-   Shell scripts that behave like real users and CI:
+1. **Core unit tests (Rust)**  
+   Semantic correctness without ROS.
+2. **Adapter integration tests (Rust)**  
+   Adapter contracts and state reconciliation.
+3. **System tests (CLI-level)**  
+   Real ROS tools (`ros2 lifecycle`, Nav2, Python managers).
 
-   * `ros2 lifecycle`
-   * Python managers
-   * Nav2
-
-ROS-native adapter tests require ROS Jazzy to be sourced and are run from the
-dev_ws environment.
-
-Shell scripts are intentional:
-they test **real ROS behavior**, not mocked APIs.
-
-### How to run tests
-
-Core-only (no ROS workspace):
-
-```bash
-cargo fmt --all -- --check
-cargo clippy -p rosrustext_core -- -D warnings
-cargo test -p rosrustext_core
-```
-
-roslibrust adapter (from repo root, ROS sourced):
-
-```bash
-./scripts/test/run_all_tests.sh
-```
-
-rosrs adapter system tests (from ROS workspace, ROS sourced):
-
-```bash
-~/fcsl/rosrustext/scripts/test/ros2_rust/run_all_tests.sh
-```
-
-Note: ChangeState timing tests use an rclpy client to avoid `ros2` CLI startup overhead.
-
----
-
-## What this project is *not*
-
-* ❌ A replacement for `rclcpp`, `rclpy`, `roslibrust`, or `ros2_rust`.
-* ❌ A single Rust ROS client library
-* ❌ A macro-driven abstraction layer
-* ❌ A green-field ROS reimplementation
-
-This is about **compatibility, correctness, and confidence**.
+Shell scripts are intentional:  
+they test **what operators actually run**, not mocked APIs.
 
 ---
 
@@ -243,28 +191,18 @@ This is about **compatibility, correctness, and confidence**.
 * roslibrust adapter: **complete**
 * Nav2 compatibility (roslibrust): **verified**
 * rosrs adapter (lifecycle): **complete (ROS workspace only)**
-* Actions, parameters, execution: **planned**
+* Parameters, actions, execution: **in progress**
 
 ---
 
-## Crates.io / Publishing
+## What this project is *not*
 
-Published or publish-ready:
+* ❌ A replacement for `rclcpp`, `rclpy`, `roslibrust`, or `ros2_rust`
+* ❌ A single Rust ROS client library
+* ❌ A macro-heavy abstraction framework
+* ❌ A green-field ROS reimplementation
 
-* `rosrustext_core`
-* `rosrustext_roslibrust`
-
-Not published:
-
-* `rosrustext_rosrs` (ROS workspace only; depends on ROS msg crates generated in colcon)
-* ROS msg crates (`lifecycle_msgs`, `bond`) used by the ROS workspace overlay
-* `rosrustext_lifecycle_proxy` (tool-only; not published)
-
-Docs build on docs.rs without ROS. Runtime builds and tests require ROS 2 Jazzy
-with the environment sourced (`/opt/ros/jazzy/setup.bash`); dev_ws is recommended
-for rclrs-backed adapters.
-
-See `TODO.md` and parity documents for tracked work.
+This project is about **compatibility, correctness, and confidence**.
 
 ---
 
@@ -273,6 +211,6 @@ See `TODO.md` and parity documents for tracked work.
 This project is developed alongside real industrial systems
 (OPC UA bridges, safety-critical control),
 where Rust is chosen for correctness and failure containment —
-but must still operate inside the ROS 2 ecosystem.
+but must still operate fully inside the ROS 2 ecosystem.
 
 `rosrustext` exists so choosing Rust does **not** mean opting out of ROS 2.
