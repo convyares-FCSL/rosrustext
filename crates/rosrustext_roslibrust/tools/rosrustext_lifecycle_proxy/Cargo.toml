@@ -15,9 +15,12 @@ tokio = { version = "1.48", features = ["macros", "rt-multi-thread", "sync", "ti
 tracing = "0.1"
 tracing-subscriber = "0.3"
 rosrustext_core = { version = "0.4.0", path = "../../../rosrustext_core" }
-rosrustext_roslibrust = { version = "0.4.0", path = "../.." }
+rosrustext_roslibrust = { version = "0.2.1", path = "../.." }
 
 [build-dependencies]
 roslibrust = { version = "0.18.0", features = ["codegen"] }
 
 [workspace]
+
+[patch.crates-io]
+rosrustext_core = { path = "../../../rosrustext_core" }

@@ -8,6 +8,7 @@ SERVICE_READY_DELAY="${SERVICE_READY_DELAY:-1}"
 TOPIC_WAIT_TIMEOUT="${TOPIC_WAIT_TIMEOUT:-6}"
 STATE_WAIT_TIMEOUT="${STATE_WAIT_TIMEOUT:-5}"
 STATE_POLL_INTERVAL="${STATE_POLL_INTERVAL:-0.2}"
+STATE_QUERY_TIMEOUT="${STATE_QUERY_TIMEOUT:-3}"
 
 log() {
   echo "[$(date +%H:%M:%S)] $*"
@@ -62,15 +63,48 @@ assert_state_not() {
   [[ -n "$output" ]] && echo "$output"
 }
 
+assert_state() {
+  local expected="$1"
+  local label="$2"
+  log "$label"
+  set +e
+  local output
+  output=$(capture_state)
+  local status=$?
+  set -e
+  if [[ $status -eq 124 ]]; then
+    log "$label timed out after ${LIFECYCLE_TIMEOUT}s"
+    return 1
+  fi
+  if [[ $status -ne 0 ]]; then
+    log "$label failed (exit $status)"
+    [[ -n "$output" ]] && echo "$output"
+    return 1
+  fi
+  if ! echo "$output" | rg -q "^${expected} \\["; then
+    log "$label expected ${expected}"
+    echo "$output"
+    return 1
+  fi
+  [[ -n "$output" ]] && echo "$output"
+}
+
 wait_for_state() {
   local expected="$1"
   local timeout_s="$2"
   local start
   start="$(date +%s)"
+  local query_timeout="$STATE_QUERY_TIMEOUT"
+  if (( query_timeout > timeout_s )); then
+    query_timeout="$timeout_s"
+  fi
+  if (( query_timeout < 1 )); then
+    query_timeout=1
+  fi
   while true; do
     set +e
     local output
-    output=$(capture_state)
+    output=$(timeout "${query_timeout}s" ros2 lifecycle get "/${TARGET_NODE}" 2>&1)
     local status=$?
     set -e
     if [[ $status -eq 0 ]] && echo "$output" | rg -q "^${expected} \\["; then
@@ -84,6 +118,17 @@ wait_for_state() {
     fi
     sleep "$STATE_POLL_INTERVAL"
   done
+}
+
+verify_state() {
+  local expected="$1"
+  local label="$2"
+  if [[ "${STATE_WAIT_TIMEOUT}" != "0" ]]; then
+    log "$label"
+    wait_for_state "$expected" "$STATE_WAIT_TIMEOUT"
+  else
+    assert_state "$expected" "$label"
+  fi
 }
 
 wait_for_service() {
@@ -140,14 +185,18 @@ else
   log "topic /${TARGET_NODE}/transition_event not visible after ${TOPIC_WAIT_TIMEOUT}s"
 fi
 
+run_cmd "lifecycle get_available_transitions /${TARGET_NODE}" \
+  ros2 service call "/${TARGET_NODE}/get_available_transitions" \
+  lifecycle_msgs/srv/GetAvailableTransitions "{}"
+
 run_cmd "lifecycle set /${TARGET_NODE} configure" ros2 lifecycle set "/${TARGET_NODE}" configure
-assert_state_not "Unconfigured" "lifecycle get /${TARGET_NODE} (post-configure)"
-sleep 1
+verify_state "Inactive" "lifecycle get /${TARGET_NODE} (post-configure)"
 
 run_cmd "lifecycle set /${TARGET_NODE} activate" ros2 lifecycle set "/${TARGET_NODE}" activate
-assert_state_not "Inactive" "lifecycle get /${TARGET_NODE} (post-activate)"
+verify_state "Active" "lifecycle get /${TARGET_NODE} (post-activate)"
 
-wait_for_state "Active" "$STATE_WAIT_TIMEOUT"
+run_cmd "lifecycle set /${TARGET_NODE} shutdown" ros2 lifecycle set "/${TARGET_NODE}" shutdown
+verify_state "Finalized" "lifecycle get /${TARGET_NODE} (post-shutdown)"
 
 if [[ -n "$echo_pid" ]]; then
   wait "$echo_pid" || true

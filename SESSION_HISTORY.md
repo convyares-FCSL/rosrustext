@@ -321,3 +321,7 @@ Note (clarification):
 
 Outcome:
 Release hygiene is clean and version alignment is ready for publish.
+
+
+## 2026-01-18
+- Prepared rosrustext_roslibrust v0.2.1 release checks (docs, demo/test, exports).

@@ -4,8 +4,10 @@
 //!
 //! Exposes application-facing lifecycle primitives while keeping core semantics in rosrustext_core.
 
-/// Re-export core lifecycle types
-pub use rosrustext_core::lifecycle::{ActivationGate, CallbackResult, LifecycleCallbacks};
+/// Re-export core lifecycle types.
+pub use rosrustext_core::lifecycle::{
+    available_transitions, ActivationGate, CallbackResult, LifecycleCallbacks, State, Transition, ALL_STATES,
+};
 
 // ROS lifecycle IDs/mapping (wrapper side).
 mod ros;

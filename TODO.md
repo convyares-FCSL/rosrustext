@@ -45,6 +45,7 @@ Lifecycle is the **first completed capability**, not the final goal.
 - [x] Bond heartbeat (Nav2 QoS)
 - [x] Busy rejection + gating
 - [x] CLI + Python + Nav2 validation
+- [x] Demo/test harness covers configure → activate → shutdown
 
 ### Adapter: rosrs (rclrs)
 - [x] Full lifecycle service surface

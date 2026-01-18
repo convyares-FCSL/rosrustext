@@ -12,6 +12,15 @@ Upstream transport:
 This crate exists to provide **production-grade lifecycle behavior today**,
 even in environments where native RCL bindings are unavailable or undesirable.
 
+Lifecycle services are **not** exposed directly by roslibrust alone.
+They are projected onto the ROS graph by `rosrustext_lifecycle_proxy` over
+rosbridge.
+
+Required runtime stack:
+- `rosbridge_websocket`
+- `rosrustext_lifecycle_proxy`
+- your `rosrustext_roslibrust` node (or the demo)
+
 ---
 
 ## Scope and status
@@ -30,7 +39,8 @@ Lifecycle is the **only** supported feature in this adapter.
 ## Lifecycle parity (implemented)
 
 The following ROS-facing lifecycle surface is fully implemented and verified
-against real ROS tooling:
+against real ROS tooling. These endpoints are provided by
+`rosrustext_lifecycle_proxy` and are **not** native to roslibrust alone.
 
 - Lifecycle services:
   - `change_state`
@@ -55,6 +65,7 @@ All lifecycle semantics are sourced from `rosrustext_core`.
 
 - Transport uses **roslibrust 0.18.x** over **rosbridge**.
 - DDS-level QoS knobs are not exposed by rosbridge and are therefore not tunable.
+- rosbridge serialization limits apply (only supported message/service types).
 - No `rosapi` or graph-introspection dependencies are introduced.
 - `change_state` returns `success=true` once a transition is accepted;
   callback outcome is reflected in:
@@ -62,6 +73,7 @@ All lifecycle semantics are sourced from `rosrustext_core`.
   - the `transition_event`
 - Subscriptions are **not lifecycle-gated** in this adapter.
   Only publish and timer execution paths are gated.
+- Shutdown may emit rclpy "context not valid" noise from rosbridge at teardown.
 
 These behaviors match documented and tested ROS 2 expectations.
 
@@ -126,6 +138,7 @@ System-level tests validate behavior against real ROS 2 tools:
 These tests exercise:
 
 * `ros2 lifecycle` CLI
+* `ros2 service call` for `get_available_transitions`
 * Python lifecycle managers
 * Nav2 lifecycle manager (bond behavior)
 
