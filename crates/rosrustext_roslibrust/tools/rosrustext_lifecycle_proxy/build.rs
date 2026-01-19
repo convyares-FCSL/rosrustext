@@ -4,12 +4,16 @@ use std::path::{Path, PathBuf};
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rerun-if-env-changed=AMENT_PREFIX_PATH");
 
-    let packages = ["lifecycle_msgs", "bond", "std_msgs"];
+    let bond_enabled = std::env::var_os("CARGO_FEATURE_BOND").is_some();
+    let mut packages = vec!["lifecycle_msgs", "std_msgs"];
+    if bond_enabled {
+        packages.push("bond");
+    }
     let mut search_paths = Vec::new();
 
     if let Some(prefixes) = std::env::var_os("AMENT_PREFIX_PATH") {
         for prefix in std::env::split_paths(&prefixes) {
-            for pkg in packages {
+            for pkg in &packages {
                 let candidate = prefix.join("share").join(pkg);
                 if candidate.is_dir() && !search_paths.contains(&candidate) {
                     search_paths.push(candidate);
@@ -18,17 +22,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    for pkg in packages {
+    for pkg in &packages {
         let fallback = PathBuf::from(format!("/opt/ros/jazzy/share/{pkg}"));
         if fallback.is_dir() && !search_paths.contains(&fallback) {
             search_paths.push(fallback);
         }
     }
 
-    normalize_bond_constants(&mut search_paths)?;
+    if bond_enabled {
+        normalize_bond_constants(&mut search_paths)?;
+    }
 
     let mut found = BTreeSet::new();
-    for pkg in packages {
+    for pkg in &packages {
         let mut present = false;
         for path in &search_paths {
             if path.join("package.xml").is_file() || path.join(pkg).join("package.xml").is_file() {
@@ -89,9 +95,8 @@ fn normalize_bond_constants(search_paths: &mut Vec<PathBuf>) -> Result<(), Box<d
         std::fs::write(&constants_path, updated.join("\n"))?;
     }
 
-    search_paths.retain(|path| {
-        !(path.file_name().is_some_and(|name| name == "bond") && path.join("package.xml").is_file())
-    });
+    search_paths
+        .retain(|path| !(path.file_name().is_some_and(|name| name == "bond") && path.join("package.xml").is_file()));
     search_paths.insert(0, patched_dir);
     Ok(())
 }

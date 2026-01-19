@@ -22,7 +22,7 @@ and managers, including:
 - `/<node>/get_available_states`
 - `/<node>/get_available_transitions`
 - `/<node>/transition_event`
-- Optional `/bond` heartbeats for Nav2 compatibility
+- Optional `/bond` heartbeats for Nav2 compatibility (feature: `bond`)
 
 It forwards lifecycle intent and state between ROS tools and a Rust-managed
 lifecycle state machine implemented elsewhere (typically in
@@ -59,6 +59,13 @@ This crate is:
 - ❌ Not a replacement for native lifecycle support when available
 
 End users typically do **not** depend on this crate directly.
+
+---
+
+## Features
+
+- `bond` (disabled by default): include `bond/msg/Status` support and publish `/bond`
+  heartbeats for Nav2. Disable at runtime with `--no-bond` or `ROSRUSTEXT_BOND=0`.
 
 ---
 

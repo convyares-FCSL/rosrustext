@@ -1,33 +1,6 @@
-use std::future::Future;
-use std::pin::Pin;
-use std::sync::Arc;
-use std::time::Duration;
-
 use rosrustext_core::lifecycle::{State as CoreState, Transition};
-use rosrustext_lifecycle_proxy::bond::Status as BondStatus;
-use rosrustext_lifecycle_proxy::bond_agent::{bond_active_for_state, set_bond_active, BondAgent, BondPublisher};
 use rosrustext_lifecycle_proxy::proxy_state::ProxyLifecycle;
 use rosrustext_roslibrust::lifecycle::{ros_state_id, ros_transition_id};
-use tokio::sync::mpsc;
-
-struct TestPublisher {
-    tx: mpsc::UnboundedSender<bool>,
-}
-
-impl BondPublisher for TestPublisher {
-    type Error = String;
-
-    fn publish<'a>(
-        &'a self, msg: &'a BondStatus,
-    ) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send + 'a>> {
-        let tx = self.tx.clone();
-        let active = msg.active;
-        Box::pin(async move {
-            let _ = tx.send(active);
-            Ok(())
-        })
-    }
-}
 
 #[test]
 fn optimistic_state_updates_and_reconciles() {
@@ -85,56 +58,96 @@ fn back_to_back_transitions_confirm_independently() {
     assert_eq!(proxy.state(), CoreState::Active);
 }
 
-#[test]
-fn bond_active_for_state_only_when_active() {
-    assert!(bond_active_for_state(CoreState::Active));
-    assert!(!bond_active_for_state(CoreState::Inactive));
-    assert!(!bond_active_for_state(CoreState::Unconfigured));
-    assert!(!bond_active_for_state(CoreState::Finalized));
-}
+#[cfg(feature = "bond")]
+mod bond_tests {
+    use super::*;
+    use std::future::Future;
+    use std::pin::Pin;
+    use std::sync::Arc;
+    use std::time::Duration;
 
-#[tokio::test]
-async fn bond_agent_publishes_heartbeat_and_stop() {
-    let (tx, mut rx) = mpsc::unbounded_channel();
-    let publisher = Arc::new(TestPublisher { tx });
-    let agent =
-        Arc::new(BondAgent::new(publisher, "demo".to_string(), Duration::from_millis(15), Duration::from_millis(120)));
+    use rosrustext_lifecycle_proxy::bond::Status as BondStatus;
+    use rosrustext_lifecycle_proxy::bond_agent::{bond_active_for_state, set_bond_active, BondAgent, BondPublisher};
+    use tokio::sync::mpsc;
 
-    agent.clone().spawn();
-    agent.set_active(true);
+    struct TestPublisher {
+        tx: mpsc::UnboundedSender<bool>,
+    }
 
-    let active = tokio::time::timeout(Duration::from_millis(80), rx.recv())
-        .await
-        .expect("active heartbeat should arrive")
-        .expect("channel should yield value");
-    assert!(active);
+    impl BondPublisher for TestPublisher {
+        type Error = String;
 
-    agent.set_active(false);
-
-    let mut saw_inactive = false;
-    let deadline = tokio::time::Instant::now() + Duration::from_millis(120);
-    while tokio::time::Instant::now() < deadline {
-        if let Ok(Some(value)) = tokio::time::timeout(Duration::from_millis(30), rx.recv()).await {
-            if !value {
-                saw_inactive = true;
-                break;
-            }
+        fn publish<'a>(
+            &'a self, msg: &'a BondStatus,
+        ) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send + 'a>> {
+            let tx = self.tx.clone();
+            let active = msg.active;
+            Box::pin(async move {
+                let _ = tx.send(active);
+                Ok(())
+            })
         }
     }
-    assert!(saw_inactive, "expected an inactive bond publish");
-}
 
-#[tokio::test]
-async fn set_bond_active_toggles_agent_state() {
-    let (tx, _rx) = mpsc::unbounded_channel();
-    let publisher = Arc::new(TestPublisher { tx });
-    let agent =
-        Arc::new(BondAgent::new(publisher, "demo".to_string(), Duration::from_millis(50), Duration::from_millis(200)));
+    #[test]
+    fn bond_active_for_state_only_when_active() {
+        assert!(bond_active_for_state(CoreState::Active));
+        assert!(!bond_active_for_state(CoreState::Inactive));
+        assert!(!bond_active_for_state(CoreState::Unconfigured));
+        assert!(!bond_active_for_state(CoreState::Finalized));
+    }
 
-    let handle = Some(agent.clone());
-    set_bond_active(&handle, true);
-    assert!(agent.is_active());
+    #[tokio::test]
+    async fn bond_agent_publishes_heartbeat_and_stop() {
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let publisher = Arc::new(TestPublisher { tx });
+        let agent = Arc::new(BondAgent::new(
+            publisher,
+            "demo".to_string(),
+            Duration::from_millis(15),
+            Duration::from_millis(120),
+        ));
 
-    set_bond_active(&handle, false);
-    assert!(!agent.is_active());
+        agent.clone().spawn();
+        agent.set_active(true);
+
+        let active = tokio::time::timeout(Duration::from_millis(80), rx.recv())
+            .await
+            .expect("active heartbeat should arrive")
+            .expect("channel should yield value");
+        assert!(active);
+
+        agent.set_active(false);
+
+        let mut saw_inactive = false;
+        let deadline = tokio::time::Instant::now() + Duration::from_millis(120);
+        while tokio::time::Instant::now() < deadline {
+            if let Ok(Some(value)) = tokio::time::timeout(Duration::from_millis(30), rx.recv()).await {
+                if !value {
+                    saw_inactive = true;
+                    break;
+                }
+            }
+        }
+        assert!(saw_inactive, "expected an inactive bond publish");
+    }
+
+    #[tokio::test]
+    async fn set_bond_active_toggles_agent_state() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let publisher = Arc::new(TestPublisher { tx });
+        let agent = Arc::new(BondAgent::new(
+            publisher,
+            "demo".to_string(),
+            Duration::from_millis(50),
+            Duration::from_millis(200),
+        ));
+
+        let handle = Some(agent.clone());
+        set_bond_active(&handle, true);
+        assert!(agent.is_active());
+
+        set_bond_active(&handle, false);
+        assert!(!agent.is_active());
+    }
 }

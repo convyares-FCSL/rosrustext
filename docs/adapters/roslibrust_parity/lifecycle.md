@@ -29,7 +29,7 @@ This file answers:
 | Topic | ROS Type | Status | Notes |
 |------|---------|--------|------|
 | `transition_event` | `lifecycle_msgs/msg/TransitionEvent` | ✅ Implemented | Bridged by proxy from backend events |
-| `/bond` | `bond/msg/Status` | ✅ Implemented | Proxy heartbeat for Nav2 lifecycle manager |
+| `/bond` | `bond/msg/Status` | ✅ Optional | Proxy heartbeat for Nav2 lifecycle manager (feature: `bond`) |
 
 ---
 
@@ -79,7 +79,7 @@ Nav2 uses `bond` to verify that managed nodes are alive after transitions.
 The proxy provides a minimal bond heartbeat so Nav2 can manage roslibrust
 nodes without disabling bond.
 
-Current behavior:
+Current behavior (feature: `bond`):
 
 - Publishes `bond/msg/Status` on `/bond`
 - `id` is the target node name, `instance_id` is generated per proxy start
@@ -87,6 +87,7 @@ Current behavior:
 - Bond stops on deactivation, shutdown, or finalization
 - Bond is dropped if the backend is unreachable (change_state transport failure or timeout)
 - Bond can be disabled with `--no-bond` or `ROSRUSTEXT_BOND=0`
+- Feature can be enabled with `--features bond` (default off)
 
 This is intentionally minimal (publish-only) and designed for compatibility
 with `nav2_lifecycle_manager` when rosbridge QoS settings are fixed.

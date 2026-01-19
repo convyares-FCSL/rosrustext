@@ -252,7 +252,8 @@ if ! wait_for_log "$LOG_DIR/backend.log" "Running \`target/debug/hyfleet_ring_ro
 fi
 
 log "starting proxy"
-TARGET_NODE="$TARGET_NODE" BRIDGE_URL="$BRIDGE_URL" start_bg proxy "$ROOT_DIR/scripts/run/roslibrust/lifecycle/run_proxy.sh"
+PROXY_FEATURES="${PROXY_FEATURES:-bond}" TARGET_NODE="$TARGET_NODE" BRIDGE_URL="$BRIDGE_URL" \
+  start_bg proxy "$ROOT_DIR/scripts/run/roslibrust/lifecycle/run_proxy.sh"
 
 sleep "$STARTUP_DELAY"
 

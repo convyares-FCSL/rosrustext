@@ -8,22 +8,24 @@ use rosrustext_core::error::{CoreError, Domain, ErrorKind, Payload, Result as Co
 use rosrustext_core::lifecycle::{
     available_transitions as core_available_transitions, State as CoreState, Transition, ALL_STATES,
 };
+#[cfg(feature = "bond")]
+use rosrustext_lifecycle_proxy::bond::Status as BondStatus;
+#[cfg(feature = "bond")]
 use rosrustext_lifecycle_proxy::bond_agent::{bond_active_for_state, set_bond_active, BondAgent, BondPublisher};
 use rosrustext_lifecycle_proxy::config::Config;
+use rosrustext_lifecycle_proxy::lifecycle_msgs::{
+    ChangeState, ChangeStateRequest, ChangeStateResponse, GetAvailableStates, GetAvailableStatesRequest,
+    GetAvailableStatesResponse, GetAvailableTransitions, GetAvailableTransitionsRequest,
+    GetAvailableTransitionsResponse, GetState, GetStateRequest, GetStateResponse,
+    TransitionEvent as RosTransitionEvent,
+};
 use rosrustext_lifecycle_proxy::proxy_state::{ProxyLifecycle, TimeoutOutcome};
+#[cfg(feature = "bond")]
+use rosrustext_lifecycle_proxy::utils::TOPIC_BOND;
 use rosrustext_lifecycle_proxy::utils::{
     backend_path, frontend_service, log_core_error, ros_state, ros_transition_description, transport_error,
     BACKEND_NAMESPACE, SERVICE_CHANGE_STATE, SERVICE_GET_AVAILABLE_STATES, SERVICE_GET_AVAILABLE_TRANSITIONS,
-    SERVICE_GET_STATE, TOPIC_BOND, TOPIC_TRANSITION_EVENT,
-};
-use rosrustext_lifecycle_proxy::{
-    bond::Status as BondStatus,
-    lifecycle_msgs::{
-        ChangeState, ChangeStateRequest, ChangeStateResponse, GetAvailableStates, GetAvailableStatesRequest,
-        GetAvailableStatesResponse, GetAvailableTransitions, GetAvailableTransitionsRequest,
-        GetAvailableTransitionsResponse, GetState, GetStateRequest, GetStateResponse,
-        TransitionEvent as RosTransitionEvent,
-    },
+    SERVICE_GET_STATE, TOPIC_TRANSITION_EVENT,
 };
 use rosrustext_roslibrust::lifecycle::{ros_transition_id, transition_from_ros_id};
 
@@ -33,10 +35,12 @@ struct Backend {
     transition_event: String,
 }
 
+#[cfg(feature = "bond")]
 struct RosbridgeBondPublisher {
     inner: Arc<roslibrust::rosbridge::Publisher<BondStatus>>,
 }
 
+#[cfg(feature = "bond")]
 impl BondPublisher for RosbridgeBondPublisher {
     type Error = roslibrust::Error;
 
@@ -45,6 +49,67 @@ impl BondPublisher for RosbridgeBondPublisher {
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), Self::Error>> + Send + 'a>> {
         Box::pin(async move { self.inner.publish(msg).await })
     }
+}
+
+#[cfg(feature = "bond")]
+type BondHandle = Option<Arc<BondAgent<RosbridgeBondPublisher>>>;
+
+#[cfg(not(feature = "bond"))]
+type BondHandle = Option<()>;
+
+#[cfg(feature = "bond")]
+async fn init_bond(ros_server: &ClientHandle, config: &Config) -> CoreResult<BondHandle> {
+    if !config.bond_enabled {
+        return Ok(None);
+    }
+    let bond_heartbeat_period = Duration::from_secs_f32(1.0);
+    let bond_heartbeat_timeout = Duration::from_secs_f32(4.0);
+    let bond_topic = TOPIC_BOND.to_string();
+    let bond_pub = Arc::new(RosbridgeBondPublisher {
+        inner: Arc::new(
+            ros_server
+                .advertise::<BondStatus>(&bond_topic)
+                .await
+                .map_err(|err| transport_error("advertise bond status", err))?,
+        ),
+    });
+    let agent =
+        Arc::new(BondAgent::new(bond_pub, config.target_node.clone(), bond_heartbeat_period, bond_heartbeat_timeout));
+    agent.clone().spawn();
+    Ok(Some(agent))
+}
+
+#[cfg(not(feature = "bond"))]
+async fn init_bond(_ros_server: &ClientHandle, _config: &Config) -> CoreResult<BondHandle> {
+    Ok(None)
+}
+
+#[cfg(feature = "bond")]
+fn clone_bond_handle(handle: &BondHandle) -> BondHandle {
+    handle.clone()
+}
+
+#[cfg(not(feature = "bond"))]
+fn clone_bond_handle(handle: &BondHandle) -> BondHandle {
+    *handle
+}
+
+#[cfg(feature = "bond")]
+fn set_bond_active_if_enabled(handle: &BondHandle, enable: bool) {
+    set_bond_active(handle, enable);
+}
+
+#[cfg(not(feature = "bond"))]
+fn set_bond_active_if_enabled(_handle: &BondHandle, _enable: bool) {}
+
+#[cfg(feature = "bond")]
+fn bond_active_for_state_if_enabled(state: CoreState) -> bool {
+    bond_active_for_state(state)
+}
+
+#[cfg(not(feature = "bond"))]
+fn bond_active_for_state_if_enabled(_state: CoreState) -> bool {
+    false
 }
 
 impl Backend {
@@ -87,29 +152,7 @@ async fn main() -> CoreResult<()> {
     let backend = Arc::new(Backend::new(ros_backend, &config.target_node));
     let lifecycle_state = Arc::new(Mutex::new(ProxyLifecycle::new(CoreState::Unconfigured)));
 
-    let bond_agent = if config.bond_enabled {
-        let bond_heartbeat_period = Duration::from_secs_f32(1.0);
-        let bond_heartbeat_timeout = Duration::from_secs_f32(4.0);
-        let bond_topic = TOPIC_BOND.to_string();
-        let bond_pub = Arc::new(RosbridgeBondPublisher {
-            inner: Arc::new(
-                ros_server
-                    .advertise::<BondStatus>(&bond_topic)
-                    .await
-                    .map_err(|err| transport_error("advertise bond status", err))?,
-            ),
-        });
-        let agent = Arc::new(BondAgent::new(
-            bond_pub,
-            config.target_node.clone(),
-            bond_heartbeat_period,
-            bond_heartbeat_timeout,
-        ));
-        agent.clone().spawn();
-        Some(agent)
-    } else {
-        None
-    };
+    let bond_agent = init_bond(&ros_server, &config).await?;
 
     let change_state_srv = frontend_service(&config.target_node, SERVICE_CHANGE_STATE);
     let get_state_srv = frontend_service(&config.target_node, SERVICE_GET_STATE);
@@ -130,7 +173,7 @@ async fn main() -> CoreResult<()> {
 
     let backend_change = Arc::clone(&backend);
     let state_for_change = Arc::clone(&lifecycle_state);
-    let bond_for_change = bond_agent.clone();
+    let bond_for_change = clone_bond_handle(&bond_agent);
     let _change_handle = ros_server
         .advertise_service::<ChangeState, _>(&change_state_srv, move |req: ChangeStateRequest| {
             let mut req = req;
@@ -183,11 +226,11 @@ async fn main() -> CoreResult<()> {
                 }
             };
             let intermediate_state = plan.intermediate_state;
-            set_bond_active(&bond_for_change, bond_active_for_state(intermediate_state));
+            set_bond_active_if_enabled(&bond_for_change, bond_active_for_state_if_enabled(intermediate_state));
             drop(guard);
 
             let backend = Arc::clone(&backend_change);
-            let bond_for_backend_error = bond_for_change.clone();
+            let bond_for_backend_error = clone_bond_handle(&bond_for_change);
             tokio::spawn(async move {
                 match backend.call_change_state(req).await {
                     Ok(resp) => {
@@ -203,13 +246,13 @@ async fn main() -> CoreResult<()> {
                     }
                     Err(err) => {
                         log_core_error(transport_error("backend change_state call failed", err));
-                        set_bond_active(&bond_for_backend_error, false);
+                        set_bond_active_if_enabled(&bond_for_backend_error, false);
                     }
                 }
             });
 
             let state_for_timeout = Arc::clone(&state_for_change);
-            let bond_for_timeout = bond_for_change.clone();
+            let bond_for_timeout = clone_bond_handle(&bond_for_change);
             tokio::spawn(async move {
                 tokio::time::sleep(change_state_timeout).await;
                 let outcome = match state_for_timeout.lock() {
@@ -217,7 +260,7 @@ async fn main() -> CoreResult<()> {
                     Err(_) => TimeoutOutcome { ok: true, warned: false },
                 };
                 if outcome.warned {
-                    set_bond_active(&bond_for_timeout, false);
+                    set_bond_active_if_enabled(&bond_for_timeout, false);
                     log_core_error(
                         CoreError::warn()
                             .domain(Domain::Lifecycle)
@@ -313,7 +356,7 @@ async fn main() -> CoreResult<()> {
         .map_err(|err| transport_error("subscribe transition_event", err))?;
 
     let state_events = Arc::clone(&lifecycle_state);
-    let bond_updates = bond_agent.clone();
+    let bond_updates = clone_bond_handle(&bond_agent);
     tokio::spawn(async move {
         loop {
             let msg = backend_event_sub.next().await;
@@ -327,7 +370,7 @@ async fn main() -> CoreResult<()> {
                     .build()),
             };
             match next_state {
-                Ok(state) => set_bond_active(&bond_updates, bond_active_for_state(state)),
+                Ok(state) => set_bond_active_if_enabled(&bond_updates, bond_active_for_state_if_enabled(state)),
                 Err(err) => log_core_error(err),
             }
             if let Err(err) = transition_pub.publish(&msg).await {
@@ -343,7 +386,7 @@ async fn main() -> CoreResult<()> {
             .msgf(format_args!("ctrl-c handler failed: {err}"))
             .build()
     })?;
-    set_bond_active(&bond_agent, false);
+    set_bond_active_if_enabled(&bond_agent, false);
     info!("shutdown");
     Ok(())
 }

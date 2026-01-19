@@ -72,9 +72,7 @@ impl Config {
 }
 
 fn print_usage() {
-    println!(
-        "rosrustext_lifecycle_proxy --target-node <name> [--node-name <name>] [--bridge-url ws://host:port] [--no-bond]"
-    );
+    println!("{}", usage());
 }
 
 fn parse_bool(value: String) -> Option<bool> {
@@ -83,4 +81,14 @@ fn parse_bool(value: String) -> Option<bool> {
         "0" | "false" | "no" | "off" => Some(false),
         _ => None,
     }
+}
+
+#[cfg(feature = "bond")]
+fn usage() -> &'static str {
+    "rosrustext_lifecycle_proxy --target-node <name> [--node-name <name>] [--bridge-url ws://host:port] [--no-bond]"
+}
+
+#[cfg(not(feature = "bond"))]
+fn usage() -> &'static str {
+    "rosrustext_lifecycle_proxy --target-node <name> [--node-name <name>] [--bridge-url ws://host:port]"
 }
