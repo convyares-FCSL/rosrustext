@@ -8,6 +8,7 @@ repository = "https://github.com/convyares-FCSL/rosrustext"
 homepage = "https://github.com/convyares-FCSL/rosrustext"
 description = "Rust lifecycle proxy for rosrustext_roslibrust nodes over rosbridge"
 readme = "README.md"
+exclude = ["interfaces", "interfaces/**"]
 
 [dependencies]
 roslibrust = { version = "0.18.0", features = ["rosbridge", "codegen"] }
