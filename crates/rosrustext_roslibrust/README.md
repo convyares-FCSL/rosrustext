@@ -61,6 +61,26 @@ All lifecycle semantics are sourced from `rosrustext_core`.
 
 ---
 
+## Rosbridge backend registration
+
+In roslibrust/rosbridge transports, you must call
+`register_lifecycle_backend_rosbridge` once at startup to expose the backend
+for the proxy.
+
+```rust
+use std::sync::{Arc, Mutex};
+
+use roslibrust::rosbridge::ClientHandle;
+use rosrustext_roslibrust::lifecycle::LifecycleNode;
+use rosrustext_roslibrust::transport::roslibrust::register_lifecycle_backend_rosbridge;
+
+let lifecycle = Arc::new(Mutex::new(LifecycleNode::new(node_name, Box::new(MyCallbacks))?));
+let client = ClientHandle::new(bridge_url).await?;
+register_lifecycle_backend_rosbridge(&client, node_name, Arc::clone(&lifecycle)).await?;
+```
+
+---
+
 ## Compatibility and transport notes
 
 - Transport uses **roslibrust 0.18.x** over **rosbridge**.

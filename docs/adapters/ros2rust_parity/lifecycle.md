@@ -44,8 +44,6 @@ Acceptance criteria (tool parity):
   after completion, with ROS-consistent IDs and labels.
 * Busy/in-flight requests are rejected deterministically with `success=false`
   and **no** `TransitionEvent`.
-* `get_transition_graph` is available when the `transition_graph` feature is
-  enabled and reflects the canonical transition table.
 * `/bond` heartbeats (feature `bond`) are emitted only while **Active**, with
   Nav2-compatible QoS.
 
@@ -85,7 +83,7 @@ documented below.
 ## Tool Parity (External behavior)
 
 Tool parity tracks ROS-facing behavior: lifecycle services, `transition_event`,
-bond semantics, busy rejection, and optional graph introspection.
+bond semantics, and busy rejection.
 
 ### Services (ROS-facing)
 
@@ -95,12 +93,6 @@ bond semantics, busy rejection, and optional graph introspection.
 | `/<node>/get_state`                 | `lifecycle_msgs/srv/GetState`                  | ✅      | Returns the **stable** lifecycle state only. While in-flight, remains at the previous stable state.                                                                                                                                                                                                                                                         |
 | `/<node>/get_available_states`      | `lifecycle_msgs/srv/GetAvailableStates`        | ✅      | Returns primary states only (Unconfigured, Inactive, Active, Finalized).                                                                                                                                                                                                                                                                                    |
 | `/<node>/get_available_transitions` | `lifecycle_msgs/srv/GetAvailableTransitions`   | ✅      | Uses the current internal state; returns empty while in-flight.                                                                                                                                                                                                                                                                                             |
-| `/<node>/get_transition_graph`      | `rosrustext_interfaces/srv/GetTransitionGraph` | ✅      | Feature `transition_graph`. Derived from the canonical transition table.                                                                                                                                                                                                                                                                                    |
-
-**Custom introspection policy (Jazzy):**
-`lifecycle_msgs` in Jazzy does not include `GetTransitionGraph`.
-`rosrustext` provides `rosrustext_interfaces/srv/GetTransitionGraph` **only**
-behind the `transition_graph` feature to preserve compatibility.
 
 ---
 
@@ -127,8 +119,8 @@ behind the `transition_graph` feature to preserve compatibility.
 | ManagedTimer gating              | ✅      | Timer callbacks guarded by `ActivationGate::is_active()`.                               |
 
 **Single source of truth:**
-Validation, `get_available_transitions`, and `get_transition_graph` are derived
-from one canonical transition table.
+Validation and `get_available_transitions` are derived from one canonical
+transition table.
 
 ---
 
@@ -207,7 +199,6 @@ an implementation detail invisible to users.
 
 * Busy/invalid `change_state` requests do not emit `transition_event`.
 * `success=true` on `change_state` indicates acceptance/initiated, not guaranteed success.
-* Transition graph service is provided via `rosrustext_interfaces` behind a feature flag.
 * Managed gating is local (publish/callback suppression), not DDS enable/disable.
 
 ---

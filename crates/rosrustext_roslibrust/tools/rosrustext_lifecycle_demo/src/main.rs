@@ -1,31 +1,16 @@
 use std::env;
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 use roslibrust::rosbridge::ClientHandle;
 
-use rosrustext_lifecycle_proxy::lifecycle_msgs::{
-    ChangeState, ChangeStateRequest, ChangeStateResponse, GetAvailableStates, GetAvailableStatesRequest,
-    GetAvailableStatesResponse, GetAvailableTransitions, GetAvailableTransitionsRequest,
-    GetAvailableTransitionsResponse, GetState, GetStateRequest, GetStateResponse,
-    State as RosState, Transition as RosTransition, TransitionDescription, TransitionEvent as RosTransitionEvent,
-};
 use rosrustext_lifecycle_proxy::std_msgs::String as RosString;
 use rosrustext_roslibrust::lifecycle::{
-    available_transitions, CallbackResult, LifecycleCallbacks, LifecycleNode, ManagedInterval, ManagedPublisher,
-    RosbridgePublisher, TransitionEvent, ALL_STATES, goal_state_for_transition, ros_state_id, ros_transition_id,
-    transition_from_ros_id,
+    CallbackResult, LifecycleCallbacks, LifecycleNode, ManagedInterval, ManagedPublisher, RosbridgePublisher,
 };
+use rosrustext_roslibrust::transport::roslibrust::register_lifecycle_backend_rosbridge;
 use rosrustext_roslibrust::transport::roslibrust::lifecycle::LifecycleService;
-use rosrustext_roslibrust::Transition;
-
-const BACKEND_NAMESPACE: &str = "_rosrustext";
-const SERVICE_CHANGE_STATE: &str = "change_state";
-const SERVICE_GET_STATE: &str = "get_state";
-const SERVICE_GET_AVAILABLE_STATES: &str = "get_available_states";
-const SERVICE_GET_AVAILABLE_TRANSITIONS: &str = "get_available_transitions";
-const TOPIC_TRANSITION_EVENT: &str = "transition_event";
 
 const DEFAULT_NODE_NAME: &str = "rosrustext_lifecycle_demo";
 const DEFAULT_PUBLISH_TOPIC: &str = "demo_tick";
@@ -71,21 +56,6 @@ impl LifecycleCallbacks for DemoCallbacks {
     }
 }
 
-fn transition_event_to_ros(ev: &TransitionEvent) -> RosTransitionEvent {
-    let transition_label = transition_from_ros_id(ev.transition_id)
-        .map(|transition| transition.label().to_string())
-        .unwrap_or_else(|| "unknown".to_string());
-    RosTransitionEvent {
-        timestamp: now_nanos(),
-        transition: RosTransition {
-            id: ev.transition_id,
-            label: transition_label,
-        },
-        start_state: ros_state(ev.start_state),
-        goal_state: ros_state(ev.goal_state),
-    }
-}
-
 fn usage() -> String {
     let cmd = env::args().next().unwrap_or_else(|| "rosrustext_lifecycle_demo".to_string());
     format!(
@@ -127,64 +97,7 @@ fn parse_args() -> Result<Config, String> {
         }
     }
 
-    Ok(Config {
-        bridge_url,
-        node_name,
-        publish_topic,
-        publish_interval_ms,
-    })
-}
-
-fn backend_path(node: &str, name: &str) -> String {
-    format!("/{node}/{BACKEND_NAMESPACE}/{name}")
-}
-
-fn ros_state(state: rosrustext_roslibrust::State) -> RosState {
-    RosState { id: ros_state_id(state), label: state.label().to_string() }
-}
-
-fn ros_transition_description(
-    start: rosrustext_roslibrust::State, transition: Transition,
-) -> Option<TransitionDescription> {
-    let ros_id = ros_transition_id(start, transition)?;
-    let goal_state = goal_state_for_transition(start, transition).ok()?;
-    Some(TransitionDescription {
-        transition: RosTransition { id: ros_id, label: transition.label().to_string() },
-        start_state: ros_state(start),
-        goal_state: ros_state(goal_state),
-    })
-}
-
-fn transition_from_label(label: &str) -> Option<Transition> {
-    match label.trim().to_ascii_lowercase().as_str() {
-        "configure" => Some(Transition::Configure),
-        "activate" => Some(Transition::Activate),
-        "deactivate" => Some(Transition::Deactivate),
-        "cleanup" => Some(Transition::Cleanup),
-        "shutdown" => Some(Transition::Shutdown),
-        _ => None,
-    }
-}
-
-fn resolve_transition_id(lifecycle: &Arc<Mutex<LifecycleNode>>, raw_id: u8, label: &str) -> u8 {
-    if raw_id != 0 {
-        return raw_id;
-    }
-    if let Some(transition) = transition_from_label(label) {
-        if let Ok(guard) = lifecycle.lock() {
-            if let Some(id) = ros_transition_id(guard.state(), transition) {
-                return id;
-            }
-        }
-    }
-    raw_id
-}
-
-fn now_nanos() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_else(|_| Duration::from_secs(0))
-        .as_nanos() as u64
+    Ok(Config { bridge_url, node_name, publish_topic, publish_interval_ms })
 }
 
 #[tokio::main(flavor = "multi_thread")]
@@ -203,7 +116,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         config.node_name.clone(),
         Box::new(DemoCallbacks),
     )?));
-    let service = Arc::new(LifecycleService::new(Arc::clone(&lifecycle)));
+    let service = LifecycleService::new(Arc::clone(&lifecycle));
+    register_lifecycle_backend_rosbridge(&ros, &config.node_name, Arc::clone(&lifecycle)).await?;
 
     let gate = {
         let guard = lifecycle.lock().expect("lifecycle node poisoned");
@@ -243,80 +157,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    let transition_topic = backend_path(&config.node_name, TOPIC_TRANSITION_EVENT);
-    let transition_pub = Arc::new(ros.advertise::<RosTransitionEvent>(&transition_topic).await?);
-    let mut transition_rx = {
-        let guard = lifecycle.lock().expect("lifecycle node poisoned");
-        guard.subscribe_transition_events()
-    };
-    tokio::spawn({
-        let transition_pub = Arc::clone(&transition_pub);
-        async move {
-            loop {
-                match transition_rx.recv().await {
-                    Ok(ev) => {
-                        let msg = transition_event_to_ros(&ev);
-                        if let Err(err) = transition_pub.publish(&msg).await {
-                            eprintln!("[transition_event] publish error: {err}");
-                        }
-                    }
-                    Err(err) => {
-                        eprintln!("[transition_event] recv error: {err}");
-                    }
-                }
-            }
-        }
-    });
-
-    let change_state_srv = backend_path(&config.node_name, SERVICE_CHANGE_STATE);
-    let get_state_srv = backend_path(&config.node_name, SERVICE_GET_STATE);
-    let get_available_states_srv = backend_path(&config.node_name, SERVICE_GET_AVAILABLE_STATES);
-    let get_available_transitions_srv = backend_path(&config.node_name, SERVICE_GET_AVAILABLE_TRANSITIONS);
-
-    let lifecycle_for_change = Arc::clone(&lifecycle);
-    let service_for_change = Arc::clone(&service);
-    let _change_state_handle = ros.advertise_service::<ChangeState, _>(&change_state_srv, move |req: ChangeStateRequest| {
-        let transition_id = resolve_transition_id(&lifecycle_for_change, req.transition.id, &req.transition.label);
-        let (success, message) = service_for_change.handle_change_state_transition_id(transition_id);
-        println!("[change_state] id={} label='{}' -> {} ({})", req.transition.id, req.transition.label, success, message);
-        Ok(ChangeStateResponse { success })
-    })
-    .await?;
-
-    let lifecycle_for_state = Arc::clone(&lifecycle);
-    let _get_state_handle = ros.advertise_service::<GetState, _>(&get_state_srv, move |_req: GetStateRequest| {
-        let state = lifecycle_for_state.lock().expect("lifecycle node poisoned").state();
-        Ok(GetStateResponse { current_state: ros_state(state) })
-    })
-    .await?;
-
-    let _get_available_states_handle =
-        ros.advertise_service::<GetAvailableStates, _>(&get_available_states_srv, move |_req: GetAvailableStatesRequest| {
-        let states = ALL_STATES.iter().copied().map(ros_state).collect();
-        Ok(GetAvailableStatesResponse { available_states: states })
-    })
-    .await?;
-
-    let lifecycle_for_transitions = Arc::clone(&lifecycle);
-    let _get_available_transitions_handle = ros.advertise_service::<GetAvailableTransitions, _>(
-        &get_available_transitions_srv,
-        move |_req: GetAvailableTransitionsRequest| {
-            let state = lifecycle_for_transitions.lock().expect("lifecycle node poisoned").state();
-            let mut transitions = Vec::new();
-            for &transition in available_transitions(state) {
-                if let Some(desc) = ros_transition_description(state, transition) {
-                    transitions.push(desc);
-                }
-            }
-            Ok(GetAvailableTransitionsResponse { available_transitions: transitions })
-        },
-    )
-    .await?;
-
     println!("rosrustext lifecycle demo node running");
     println!("  node: {}", config.node_name);
     println!("  bridge: {}", config.bridge_url);
-    println!("  backend namespace: /{}/{}/", config.node_name, BACKEND_NAMESPACE);
+    println!("  backend namespace: /{}/_rosrustext/", config.node_name);
     println!("  publish topic: {}", publish_topic);
 
     tokio::signal::ctrl_c().await?;

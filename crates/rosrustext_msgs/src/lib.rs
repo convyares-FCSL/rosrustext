@@ -8,3 +8,6 @@ pub mod bond;
 pub mod builtin_interfaces;
 pub mod lifecycle_msgs;
 pub mod std_msgs;
+
+#[cfg(feature = "roslibrust")]
+mod roslibrust;

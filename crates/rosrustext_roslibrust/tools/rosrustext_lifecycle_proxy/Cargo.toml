@@ -1,6 +1,6 @@
 [package]
 name = "rosrustext_lifecycle_proxy"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 license = "Apache-2.0"
 authors = ["Carl von Ayres <cvonayres@fuelcellsystems.co.uk>"]
@@ -15,8 +15,8 @@ roslibrust = { version = "0.18.0", features = ["rosbridge", "codegen"] }
 tokio = { version = "1.48", features = ["macros", "rt-multi-thread", "sync", "time"] }
 tracing = "0.1"
 tracing-subscriber = "0.3"
-rosrustext_core = { version = "0.4.0", path = "../../../rosrustext_core" }
-rosrustext_roslibrust = { version = "0.2.1", path = "../.." }
+rosrustext_core = { version = "0.4.0" }
+rosrustext_roslibrust = { version = "0.2.2" }
 
 [build-dependencies]
 roslibrust = { version = "0.18.0", features = ["codegen"] }
@@ -26,6 +26,3 @@ default = []
 bond = []
 
 [workspace]
-
-[patch.crates-io]
-rosrustext_core = { path = "../../../rosrustext_core" }

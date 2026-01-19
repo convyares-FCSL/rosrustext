@@ -1,6 +1,6 @@
 [package]
 name = "rosrustext_msgs"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 description = "Bundled ROS 2 messages for rosrustext"
 license = "Apache-2.0"
@@ -13,6 +13,7 @@ readme = "README.md"
 rosidl_runtime_rs = "0.5"
 serde = { version = "1.0", features = ["derive"], optional = true }
 serde-big-array = { version = "0.5", optional = true }
+roslibrust = { version = "0.18.0", optional = true }
 
 # Note: services_msgs is often empty or not used directly in structs, checking validity...
 # If generated code uses 'service_msgs', we might need to bundle it too.
@@ -22,6 +23,7 @@ serde-big-array = { version = "0.5", optional = true }
 [features]
 default = ["serde"]
 serde = ["dep:serde", "dep:serde-big-array", "rosidl_runtime_rs/serde"]
+roslibrust = ["dep:roslibrust", "serde"]
 docsrs = ["rosidl_runtime_rs/use_ros_shim"]
 
 [package.metadata.docs.rs]
