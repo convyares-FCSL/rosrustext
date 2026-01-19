@@ -1,8 +1,10 @@
+use std::fmt;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use rclrs::{Context, CreateBasicExecutor, IntoNodeOptions, NodeOptions, SpinOptions};
 use roslibrust::rosbridge::ClientHandle;
-use tracing::info;
+use tracing::{info, warn};
 
 use rosrustext_core::error::{CoreError, Domain, ErrorKind, Payload, Result as CoreResult};
 use rosrustext_core::lifecycle::{
@@ -137,11 +139,75 @@ fn transition_from_label(label: &str) -> Option<Transition> {
     }
 }
 
+fn graph_node_error(context: &'static str, err: impl fmt::Display) -> CoreError {
+    CoreError::error()
+        .domain(Domain::Transport)
+        .kind(ErrorKind::Transport)
+        .msgf(format_args!("{context}: {err}"))
+        .payload(Payload::Context { key: "where", value: "ros2 graph node".into() })
+        .build()
+}
+
+fn graph_node_parts(target_node: &str) -> CoreResult<(String, String)> {
+    let trimmed = target_node.trim_matches('/');
+    if trimmed.is_empty() {
+        return Err(CoreError::error()
+            .domain(Domain::Lifecycle)
+            .kind(ErrorKind::InvalidArgument)
+            .msg("target node name must not be empty")
+            .payload(Payload::Context { key: "where", value: "graph node".into() })
+            .build());
+    }
+
+    let (namespace, name) = match trimmed.rsplit_once('/') {
+        Some((ns, name)) => (format!("/{ns}"), name.to_string()),
+        None => ("/".to_string(), trimmed.to_string()),
+    };
+
+    Ok((name, namespace))
+}
+
+fn spawn_graph_node(target_node: &str) -> CoreResult<std::thread::JoinHandle<()>> {
+    let (name, namespace) = graph_node_parts(target_node)?;
+    let mut options = NodeOptions::new(&name).start_parameter_services(false);
+    if namespace != "/" {
+        options = options.namespace(&namespace);
+    }
+    let context = Context::default();
+    let mut executor = context.create_basic_executor();
+    let node = executor
+        .create_node(options)
+        .map_err(|err| graph_node_error("create ROS 2 graph node", err))?;
+    let node_name = node.fully_qualified_name();
+
+    let handle = std::thread::spawn(move || {
+        let _context = context;
+        let _node = node;
+        let errors = executor.spin(SpinOptions::default());
+        if !errors.is_empty() {
+            for err in errors {
+                tracing::error!("graph node spin error: {err}");
+            }
+        }
+    });
+
+    info!("graph node active: {node_name}");
+    Ok(handle)
+}
+
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> CoreResult<()> {
     tracing_subscriber::fmt::init();
 
     let config = Config::from_args();
+    if config.node_name != config.target_node {
+        warn!(
+            "node_name {} ignored for ROS graph; lifecycle node name is {}",
+            config.node_name, config.target_node
+        );
+    }
+
+    let _graph_node = spawn_graph_node(&config.target_node)?;
 
     let ros_server =
         ClientHandle::new(&config.bridge_url).await.map_err(|err| transport_error("connect to rosbridge", err))?;
